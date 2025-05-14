@@ -393,6 +393,11 @@
         // e.g. if prev < 90 and current > 270, it's a crossover to prev rev
         const MIN_ANGLE_FOR_CROSSOVER = 90; // Counterpart for ANGLE_THRESHOLD
 
+        // Gripper Mechanics Constants
+        const GRIPPER_MAX_VISUAL_ANGLE_DEG = 45;
+        const GRIPPER_MIN_VISUAL_ANGLE_DEG = 0;
+        const SMALL_GEAR_SPAN_FOR_GRIPPER_RANGE_DEG = 6 * 180; // 1080 degrees for full 0-45 gripper travel
+
 
         // --- Event Listeners for Simulators ---
         simAngleSlider.addEventListener('input', (event) => {
@@ -436,9 +441,11 @@
 
         // --- Update Functions (Display & Visuals) ---
         function updateGripperAngleDisplay(angle) {
+            // Use the raw angle for transformations for precision
             leftFinger.style.transform = `rotate(${angle}deg)`;
             rightFinger.style.transform = `rotate(${-angle}deg)`;
-            angleOutput.textContent = `${angle}`;
+            // Display a rounded angle in the text output
+            angleOutput.textContent = `${Math.round(angle)}`;
         }
 
         function updateGripStatusDisplay(isGripped) {
@@ -489,6 +496,27 @@
             }
             previousGearAngle = currentAngleDegrees;
             gearRevolutionsOutput.textContent = gearRevolutions;
+
+            // --- New code for gripper finger update based on gear rotation ---
+            let totalAccumulatedSmallGearRotationDeg = (gearRevolutions * 360) + currentAngleDegrees;
+
+            let newGripperFingerAngle =
+                (totalAccumulatedSmallGearRotationDeg / SMALL_GEAR_SPAN_FOR_GRIPPER_RANGE_DEG) *
+                (GRIPPER_MAX_VISUAL_ANGLE_DEG - GRIPPER_MIN_VISUAL_ANGLE_DEG) +
+                GRIPPER_MIN_VISUAL_ANGLE_DEG;
+
+            // Clamp the angle to the visual range [GRIPPER_MIN_VISUAL_ANGLE_DEG, GRIPPER_MAX_VISUAL_ANGLE_DEG]
+            newGripperFingerAngle = Math.max(GRIPPER_MIN_VISUAL_ANGLE_DEG, Math.min(newGripperFingerAngle, GRIPPER_MAX_VISUAL_ANGLE_DEG));
+
+            updateGripperAngleDisplay(newGripperFingerAngle);
+
+            // Update the simulator slider to reflect the hardware-driven angle when connected
+            if (port && port.readable) { // Check if serial is connected
+                simAngleSlider.value = newGripperFingerAngle;
+                // Update the text display next to the slider
+                simAngleValueDisplay.textContent = Math.round(newGripperFingerAngle);
+            }
+            // --- End of new code ---
         }
 
         // --- Serial Connection Functions ---
