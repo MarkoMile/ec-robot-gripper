@@ -60,11 +60,11 @@
             /* Height of the base block */
             background-color: #555;
             position: absolute;
-            bottom: 0px;
+            top: 0px;
             /* At the bottom of gripper-visualization */
             left: 50%;
             transform: translateX(-50%);
-            border-radius: 5px 5px 0 0;
+            border-radius: 0 0 5px 5px;
         }
 
         .finger {
@@ -72,7 +72,7 @@
             height: 120px;
             background-color: #777;
             position: absolute;
-            bottom: -40px;
+            top: 40px;
             /* Positioned relative to gripper-arm-area, above base */
             border: 1px solid #444;
             border-radius: 5px;
@@ -82,7 +82,7 @@
         #left-finger {
             left: calc(50% - 35px - 15px);
             /* (Center - half finger width - gap) */
-            transform-origin: 50% 100%;
+            transform-origin: 50% 0%;
             /* Pivot at bottom center of finger */
             transform: rotate(-15deg);
             /* Initial open angle */
@@ -91,7 +91,7 @@
         #right-finger {
             right: calc(50% - 35px - 15px);
             /* (Center - half finger width - gap) */
-            transform-origin: 50% 100%;
+            transform-origin: 50% 0%;
             /* Pivot at bottom center of finger */
             transform: rotate(15deg);
             /* Initial open angle */
@@ -314,8 +314,8 @@
             // Angle is per finger, from vertical. 0 = closed, 45 = max open.
             // The TLE5012B would provide a raw angle, which would then be mapped.
             // Here, 'angle' is the desired opening angle for each finger.
-            leftFinger.style.transform = `rotate(${-angle}deg)`;
-            rightFinger.style.transform = `rotate(${angle}deg)`;
+            leftFinger.style.transform = `rotate(${angle}deg)`;
+            rightFinger.style.transform = `rotate(${-angle}deg)`;
             angleOutput.textContent = `${angle}`; // Display the finger opening angle
         }
 
