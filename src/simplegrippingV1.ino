@@ -6,13 +6,16 @@
 
 struct InputDataStruct{
  double x, y, z;
+ float tleSensor;
+ float targetVoltage;
 };
 
-struct OutputData{
-
+struct OutputDataStruct{
+    float target_voltage;
 };
-
-
+//
+InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
+OutputDataStruct outputDataLoop; // sadrzi izlazne podatke
 // define SPI pins for TLE5012 sensor
 #define PIN_SPI1_SS0 94  // Chip Select (CS) pin
 #define PIN_SPI1_MOSI 69 // MOSI pin
@@ -63,11 +66,11 @@ void doTarget(char *cmd) { command.scalar(&target_voltage, cmd); }
 void readInputs(InputDataStruct &inputData) {
     #if ENABLE_MAGNETIC_SENSOR
   if (digitalRead(BUTTON1) == LOW) {
-    target_voltage = -3; // close gripper
+    inputData.targetVoltage = -3; // close gripper
   } else if (digitalRead(BUTTON2) == LOW) {
-    target_voltage = 3; // open gripper
+    inputData.targetVoltage  = 3; // open gripper
   } else {
-    target_voltage = 0; // stop gripper
+    inputData.targetVoltage  = 0; // stop gripper
   }
   // read the magnetic field data
   
@@ -79,19 +82,19 @@ void readInputs(InputDataStruct &inputData) {
   inputData.y -= yOffset;
   inputData.z -= zOffset;
 
-  // print the magnetic field data
-  Serial.print(inputData.x);
-  Serial.print(",");
-
-  Serial.print(inputData.y);
-  Serial.print(",");
-
-  Serial.print(inputData.z);
-  Serial.println("");
+  tle5012Sensor.update();
+#if ENABLE_READ_ANGLE
+  inputData.tleSensor=tle5012Sensor.getSensorAngle()
+#endif
 #endif
 }
-void executeLogic(){}
-void outputResults(){}
+void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
+    outputData.target_voltage=inputData.targetVoltage;
+}
+void outputResults(OutputDataStruct &outputData){
+    motor.loopFOC();
+    motor.move(outputData.target_voltage);
+}
 void setup() {
   // use monitoring with serial
   Serial.begin(115200);
@@ -152,27 +155,16 @@ void setup() {
   Serial.println(F("Set the target voltage using serial terminal:"));
 #endif
   _delay(1000);
+  
 }
 
 void loop() {
 
-  // update angle sensor data
-  tle5012Sensor.update();
-#if ENABLE_READ_ANGLE
-  Serial.print(tle5012Sensor.getSensorAngle());
-  Serial.println("");
-#endif
-  // main FOC algorithm function
-  // the faster you run this function the better
-  // Arduino UNO loop  ~1kHz
-  // Bluepill loop ~10kHz
-  motor.loopFOC();
+    readInputs(inputDataLoop);
+    executeLogic(inputDataLoop,outputDataLoop);
+    outputResults(outputDataLoop);
 
-  // Motion control function
-  // velocity, position or voltage (defined in motor.controller)
-  // this function can be run at much lower frequency than loopFOC() function
-  // You can also use motor.move() and set the motor.target in the code
-  motor.move(target_voltage);
+  
 #if ENABLE_COMMANDER
   // user communication
   command.run();
