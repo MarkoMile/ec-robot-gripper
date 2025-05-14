@@ -34,7 +34,7 @@ struct stateStruct{
     float x_filtered=0;
     float y_filtered=0;
     float z_filtered=0;
-    float magneticAlphaFilter=0.1;
+    float magneticAlphaFilter=0.05;
     int numberOfRevolutions=0;
 };
 struct PIDStruct{
@@ -230,7 +230,7 @@ void initDiscretePID()
 
 void zeriongFunc() {
   // Initialize total path traveled (sum of absolute movements).
-  if (abs(stateDataLoop.x_filtered)<0.06)
+  if (abs(stateDataLoop.x_filtered)<0.1)
   {
     stateDataLoop.target_voltage=-1;
     Serial.println("zeroing in progress");
