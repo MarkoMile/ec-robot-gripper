@@ -222,6 +222,33 @@ void initDiscretePID()
     float y_old;*/
 }
 
+void setup_FOC_curent() {
+  
+  motor.torque_controller = TorqueControlType::foc_curent;
+  motor.controller = MotionControlType::torque;
+
+  // Q axis
+  // PID parameters - default 
+  motor.PID_current_q.P = 5;                       // 3    - Arduino UNO/MEGA
+  motor.PID_current_q.I = 1000;                    // 300  - Arduino UNO/MEGA
+  motor.PID_current_q.D = 0;
+  motor.PID_current_q.limit = motor.voltage_limit; 
+  motor.PID_current_q.ramp = 1e6;                  // 1000 - Arduino UNO/MEGA
+  // Low pass filtering - default 
+  LPF_current_q.Tf= 0.005;                         // 0.01 - Arduino UNO/MEGA
+
+  // D axis
+  // PID parameters - default 
+  motor.PID_current_d.P = 5;                       // 3    - Arduino UNO/MEGA
+  motor.PID_current_d.I = 1000;                    // 300  - Arduino UNO/MEGA
+  motor.PID_current_d.D = 0;
+  motor.PID_current_d.limit = motor.voltage_limit; 
+  motor.PID_current_d.ramp = 1e6;                  // 1000 - Arduino UNO/MEGA
+  // Low pass filtering - default 
+  LPF_current_d.Tf= 0.005;                         // 0.01 - Arduino UNO/MEGA
+
+
+}
 
 
 void setup() {
@@ -253,8 +280,8 @@ void setup() {
   motor.voltage_sensor_align = 2;
   // choose FOC modulation (optional)
   motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
-  // set motion control loop to be used
-  motor.controller = MotionControlType::torque;
+  // set motion control loop to be used and setup the foc
+  setup_FOC_curent();
 
   // comment out if not needed
   // motor.useMonitoring(Serial);
