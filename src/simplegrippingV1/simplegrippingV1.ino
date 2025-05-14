@@ -160,7 +160,6 @@ void setup() {
 
 void loop() {
 
-  // update angle sensor data
     readInputs(inputDataLoop);
     executeLogic(inputDataLoop,outputDataLoop);
     outputResults(outputDataLoop);
