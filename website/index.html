@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robotic Gripper Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            display: flex;
+            gap: 30px;
+            width: 100%;
+            max-width: 1000px;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+
+        .gripper-visualization {
+            width: 300px;
+            height: 350px;
+            /* Increased height for base */
+            border: 1px solid #ccc;
+            background-color: #fff;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            /* Stack base and fingers area */
+            align-items: center;
+            padding-top: 20px;
+            /* Space for fingers to open */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .gripper-arm-area {
+            width: 100%;
+            height: 250px;
+            /* Area for fingers and object */
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Vertically center the object roughly */
+        }
+
+        .gripper-base {
+            width: 80px;
+            height: 80px;
+            /* Height of the base block */
+            background-color: #555;
+            position: absolute;
+            bottom: 0px;
+            /* At the bottom of gripper-visualization */
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 5px 5px 0 0;
+        }
+
+        .finger {
+            width: 30px;
+            height: 120px;
+            background-color: #777;
+            position: absolute;
+            bottom: -40px;
+            /* Positioned relative to gripper-arm-area, above base */
+            border: 1px solid #444;
+            border-radius: 5px;
+            transition: transform 0.3s ease-out;
+        }
+
+        #left-finger {
+            left: calc(50% - 35px - 15px);
+            /* (Center - half finger width - gap) */
+            transform-origin: 50% 100%;
+            /* Pivot at bottom center of finger */
+            transform: rotate(-15deg);
+            /* Initial open angle */
+        }
+
+        #right-finger {
+            right: calc(50% - 35px - 15px);
+            /* (Center - half finger width - gap) */
+            transform-origin: 50% 100%;
+            /* Pivot at bottom center of finger */
+            transform: rotate(15deg);
+            /* Initial open angle */
+        }
+
+        /* Optional: Add detail to fingers like the image */
+        .finger::before {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            right: 5px;
+            height: 20px;
+            background-color: #999;
+            border-radius: 3px;
+        }
+
+        .finger::after {
+            /* Gripping pad */
+            content: '';
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 40px;
+            background-color: #aaa;
+            border-radius: 3px;
+        }
+
+
+        #object-ball {
+            width: 50px;
+            height: 50px;
+            background-color: dodgerblue;
+            border-radius: 50%;
+            position: absolute;
+            /* Centered in the gripper-arm-area, adjust top as needed */
+            top: calc(50% - 25px + 20px);
+            /* Nudge it down a bit */
+            left: calc(50% - 27px);
+            transition: background-color 0.3s ease;
+            z-index: 5;
+            /* Above fingers if they overlap slightly */
+            border: 3px solid rgba(255, 255, 255, 0);
+        }
+
+        #object-ball.gripped {
+            background-color: limegreen;
+        }
+
+        #object-ball.soft {
+            border: 3px dashed orange;
+        }
+
+        #object-ball.rigid {
+            border: 3px solid darkred;
+        }
+
+
+        .status-panel,
+        .simulation-controls {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 350px;
+            box-sizing: border-box;
+        }
+
+        .status-panel h2,
+        .simulation-controls h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .status-panel p,
+        .simulation-controls label {
+            margin: 10px 0;
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        .status-panel span {
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .simulation-controls label {
+            display: block;
+            margin-bottom: 15px;
+        }
+
+        .simulation-controls input[type="range"],
+        .simulation-controls select {
+            width: calc(100% - 20px);
+            margin-top: 5px;
+        }
+
+        .simulation-controls input[type="checkbox"] {
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Robotic Gripper Control Panel</h1>
+
+    <div class="container">
+        <div class="gripper-visualization">
+            <div class="gripper-arm-area">
+                <div id="left-finger" class="finger"></div>
+                <div id="right-finger" class="finger"></div>
+                <div id="object-ball"></div>
+            </div>
+            <div class="gripper-base"></div>
+        </div>
+
+        <div class="status-panel">
+            <h2>Hardware Outputs</h2>
+            <p>Angle Sensor (TLE5012B): <span id="angle-output">15</span>°</p>
+            <p>Magnetic Sensor (TLx493D - Gripped): <span id="gripped-output">No</span></p>
+            <p>Motor Controller Status: <span id="motor-output">Idle</span></p>
+            <hr>
+            <h2>Object Properties</h2>
+            <p>Object Type: <span id="object-type-output">N/A</span></p>
+        </div>
+
+        <div class="simulation-controls">
+            <h2>Simulator Controls (Mimics Hardware)</h2>
+
+            <label for="sim-angle">Gripper Angle (0° closed, 45° open):
+                <input type="range" id="sim-angle" min="0" max="45" value="15">
+                <span id="sim-angle-value">15</span>°
+            </label>
+
+            <label for="sim-gripped">
+                <input type="checkbox" id="sim-gripped"> Simulate Object Gripped (TLx493D)
+            </label>
+
+            <label for="sim-object-type">Simulate Object Type:
+                <select id="sim-object-type">
+                    <option value="N/A" selected>N/A</option>
+                    <option value="soft">Soft</option>
+                    <option value="rigid">Rigid</option>
+                </select>
+            </label>
+
+            <label for="sim-motor-status">Simulate Motor Status:
+                <select id="sim-motor-status">
+                    <option value="Idle">Idle</option>
+                    <option value="Moving: Closing">Moving: Closing</option>
+                    <option value="Moving: Opening">Moving: Opening</option>
+                    <option value="Stalled">Stalled</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const leftFinger = document.getElementById('left-finger');
+        const rightFinger = document.getElementById('right-finger');
+        const objectBall = document.getElementById('object-ball');
+
+        // Output Displays
+        const angleOutput = document.getElementById('angle-output');
+        const grippedOutput = document.getElementById('gripped-output');
+        const motorOutput = document.getElementById('motor-output');
+        const objectTypeOutput = document.getElementById('object-type-output');
+
+        // Simulator Controls
+        const simAngleSlider = document.getElementById('sim-angle');
+        const simAngleValueDisplay = document.getElementById('sim-angle-value');
+        const simGrippedCheckbox = document.getElementById('sim-gripped');
+        const simObjectTypeSelect = document.getElementById('sim-object-type');
+        const simMotorStatusSelect = document.getElementById('sim-motor-status');
+
+        // --- Event Listeners for Simulators ---
+
+        simAngleSlider.addEventListener('input', (event) => {
+            const angle = parseInt(event.target.value);
+            updateGripperAngle(angle);
+            simAngleValueDisplay.textContent = angle; // Update slider value display
+            // Simulate motor moving if angle changes
+            if (angle < parseInt(angleOutput.textContent)) {
+                updateMotorStatus("Moving: Closing");
+            } else if (angle > parseInt(angleOutput.textContent)) {
+                updateMotorStatus("Moving: Opening");
+            }
+            // After a short delay, set motor to idle (simulation)
+            setTimeout(() => {
+                if (simMotorStatusSelect.value.startsWith("Moving")) { // only if it was moving
+                    updateMotorStatusBasedOnSelect(); // or revert to selected if not idle
+                }
+            }, 500);
+        });
+
+        simGrippedCheckbox.addEventListener('change', (event) => {
+            updateGripStatus(event.target.checked);
+        });
+
+        simObjectTypeSelect.addEventListener('change', (event) => {
+            updateObjectType(event.target.value);
+        });
+
+        simMotorStatusSelect.addEventListener('change', (event) => {
+            updateMotorStatus(event.target.value);
+        });
+
+
+        // --- Update Functions ---
+
+        function updateGripperAngle(angle) {
+            // Angle is per finger, from vertical. 0 = closed, 45 = max open.
+            // The TLE5012B would provide a raw angle, which would then be mapped.
+            // Here, 'angle' is the desired opening angle for each finger.
+            leftFinger.style.transform = `rotate(${-angle}deg)`;
+            rightFinger.style.transform = `rotate(${angle}deg)`;
+            angleOutput.textContent = `${angle}`; // Display the finger opening angle
+        }
+
+        function updateGripStatus(isGripped) {
+            if (isGripped) {
+                objectBall.classList.add('gripped');
+                grippedOutput.textContent = 'Yes';
+            } else {
+                objectBall.classList.remove('gripped');
+                grippedOutput.textContent = 'No';
+            }
+        }
+
+        function updateObjectType(type) {
+            objectTypeOutput.textContent = type.charAt(0).toUpperCase() + type.slice(1); // Capitalize
+            objectBall.classList.remove('soft', 'rigid');
+            if (type === 'soft') {
+                objectBall.classList.add('soft');
+            } else if (type === 'rigid') {
+                objectBall.classList.add('rigid');
+            }
+        }
+
+        function updateMotorStatus(status) {
+            motorOutput.textContent = status;
+            // If motor status is set from outside (like angle change), update the dropdown
+            if (simMotorStatusSelect.value !== status) {
+                // Check if the status is a valid option, otherwise don't change select
+                const options = Array.from(simMotorStatusSelect.options).map(opt => opt.value);
+                if (options.includes(status)) {
+                    simMotorStatusSelect.value = status;
+                }
+            }
+        }
+
+        function updateMotorStatusBasedOnSelect() {
+            updateMotorStatus(simMotorStatusSelect.value);
+        }
+
+        // --- Initialization ---
+        function initialize() {
+            const initialAngle = parseInt(simAngleSlider.value);
+            updateGripperAngle(initialAngle);
+            simAngleValueDisplay.textContent = initialAngle;
+
+            updateGripStatus(simGrippedCheckbox.checked);
+            updateObjectType(simObjectTypeSelect.value);
+            updateMotorStatus(simMotorStatusSelect.value);
+        }
+
+        // Initialize on load
+        initialize();
+
+    </script>
+</body>
+
+</html>
