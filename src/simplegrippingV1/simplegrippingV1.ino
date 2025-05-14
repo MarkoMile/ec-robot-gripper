@@ -8,6 +8,8 @@ struct InputDataStruct{
  double x, y, z;
  float tleSensor;
  float targetVoltage;
+ bool button1;
+  bool button2;
 };
 
 struct OutputDataStruct{
@@ -65,14 +67,10 @@ void doTarget(char *cmd) { command.scalar(&target_voltage, cmd); }
 #endif
 void readInputs(InputDataStruct &inputData) {
   
-  if (digitalRead(BUTTON1) == LOW) {
-    inputData.targetVoltage = -3; // close gripper
-  } else if (digitalRead(BUTTON2) == LOW) {
-    inputData.targetVoltage  = 3; // open gripper
-  } else {
-    inputData.targetVoltage  = 0; // stop gripper
-  }
-  // read the magnetic field data
+  // read the buttons
+  inputData.button1 = digitalRead(BUTTON1);
+  inputData.button2 = digitalRead(BUTTON2);
+  // read the target voltage from the buttons
   
   dut.setSensitivity(TLx493D_FULL_RANGE_e);
   dut.getMagneticField(&inputData.x, &inputData.y, &inputData.z);
@@ -93,7 +91,7 @@ void outputResults(OutputDataStruct &outputData){
     motor.loopFOC();
     motor.move(outputData.target_voltage);
 }
-void dataProcessing(InputDataStruct &inputData, OutputDataStruct &outputData){
+void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData){
     Serial.print(inputData.x);
     Serial.print(",");
     Serial.print(inputData.y);
@@ -171,7 +169,7 @@ void loop() {
     readInputs(inputDataLoop);
     executeLogic(inputDataLoop,outputDataLoop);
     outputResults(outputDataLoop);
-    dataProcessing(inputDataLoop,outputDataLoop);
+    serialComunication(inputDataLoop,outputDataLoop);
   
 #if ENABLE_COMMANDER
   // user communication
