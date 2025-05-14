@@ -22,8 +22,20 @@ struct stateStruct{
     float voltage;
     float position;
     float velocity;
+    float rawAngle;
+    float oldRawAngle=0;
     bool gripping;
     float v;
+    float absoluteAngle;
+    float currentRawAngle;
+    float totalDegreesTraveled;
+    float degreeOffset;
+    bool zeroing=true;
+    float x_filtered=0;
+    float y_filtered=0;
+    float z_filtered=0;
+    float magneticAlphaFilter=0.1;
+    int numberOfRevolutions=0;
 };
 struct PIDStruct{
     float k;
@@ -117,20 +129,12 @@ void readInputs(InputDataStruct &inputData) {
   inputData.tleSensor=tle5012Sensor.getSensorAngle();
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
-  
+  filterMagneticData();
+  if (stateDataLoop.zeroing)
+      zeriongFunc();
   discretePID();
-  if (stateDataLoop.gripping){
-    outputData.target_voltage = -1; // close grippe
-  
-  } else {
-    // no button pressed
-    outputData.target_voltage = 0;
-  }
-  Serial.println(outputData.target_voltage);
-  if (abs(inputData.x) >0.5) {
-    // x-axis value is greater than 0.5
-    outputData.target_voltage = 0;
-  }
+  gripperPositionTracking();
+  outputDataLoop.target_voltage=stateDataLoop.target_voltage;
 }
 void outputResults(OutputDataStruct &outputData){
 
@@ -138,7 +142,7 @@ void outputResults(OutputDataStruct &outputData){
     motor.move(outputData.target_voltage);
 }
 void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData){
-
+/*
     Serial.print(inputData.x);
     Serial.print(",");
     Serial.print(inputData.y);
@@ -147,8 +151,10 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     Serial.print(",");
     Serial.print(inputData.tleSensor);
     Serial.println();
-    
-    
+*/
+Serial.print("{\"angle\":");
+Serial.print(stateDataLoop.absoluteAngle);
+Serial.println("}");
 }
 
 void discretePID()
@@ -222,7 +228,50 @@ void initDiscretePID()
     float y_old;*/
 }
 
+void zeriongFunc() {
+  // Initialize total path traveled (sum of absolute movements).
+  if (abs(stateDataLoop.x_filtered)<0.06)
+  {
+    stateDataLoop.target_voltage=-1;
+    Serial.println("zeroing in progress");
+    Serial.println(stateDataLoop.x_filtered);
+  }
+  else 
+  {
+    stateDataLoop.target_voltage=0;
+    Serial.println("zeroing done");
+    stateDataLoop.zeroing=false;
+    stateDataLoop.degreeOffset=inputDataLoop.tleSensor* (57.295779513); // convert to degrees
+    Serial.println(stateDataLoop.degreeOffset);
+  }
+}
 
+void gripperPositionTracking() {
+  // 1. Read the new sensor value
+  float newRaw = tle5012Sensor.getSensorAngle() * (57.295779513); // convert to degrees
+  // 2. Compute raw delta
+  if (newRaw <30 && stateDataLoop.oldRawAngle > 330) {
+    // if the new value is less than 30 and the old value is greater than 330
+    // then we have crossed the 0 degree line
+    stateDataLoop.numberOfRevolutions++;
+  } else if (newRaw > 330 && stateDataLoop.oldRawAngle < 30) {
+    // if the new value is greater than 330 and the old value is less than 30
+    // then we have crossed the 360 degree line
+    stateDataLoop.numberOfRevolutions--;
+  }
+  // 3. Unwrap at ±half‐circle
+  
+  stateDataLoop.absoluteAngle = newRaw + stateDataLoop.numberOfRevolutions * 360- stateDataLoop.degreeOffset;  
+
+      stateDataLoop.oldRawAngle=newRaw;
+}
+
+void filterMagneticData() {
+  // Apply a low-pass filter to the magnetic field data
+  stateDataLoop.x_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.x_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.x;
+  stateDataLoop.y_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.y_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.y;
+  stateDataLoop.z_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.z_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.z;
+}
 
 void setup() {
   // use monitoring with serial
@@ -272,6 +321,7 @@ void setup() {
   Serial.println("3D magnetic sensor Calibration completed.");
 
   initDiscretePID();
+
   // set the pin modes for buttons
   pinMode(BUTTON1, INPUT);
   pinMode(BUTTON2, INPUT);
