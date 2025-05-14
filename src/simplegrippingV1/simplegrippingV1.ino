@@ -75,7 +75,7 @@ void readInputs(InputDataStruct &inputData) {
   // read the magnetic field data
   
   dut.setSensitivity(TLx493D_FULL_RANGE_e);
-  dut.getMagneticField(inputData.x, inputData.y, inputData.z);
+  dut.getMagneticField(&inputData.x, &inputData.y, &inputData.z);
 
   // subtract the offsets from the raw data
   inputData.x -= xOffset;
