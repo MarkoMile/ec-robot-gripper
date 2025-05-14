@@ -18,54 +18,63 @@
             box-sizing: border-box;
         }
 
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
         .container {
             display: flex;
             gap: 30px;
             width: 100%;
-            max-width: 1000px;
-            justify-content: space-around;
+            max-width: 1100px;
+            /* Slightly wider for gear visual */
+            justify-content: center;
             flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .visualization-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            /* Center visualizations in this column */
         }
 
         .gripper-visualization {
             width: 300px;
             height: 350px;
-            /* Increased height for base */
             border: 1px solid #ccc;
             background-color: #fff;
             position: relative;
             display: flex;
             flex-direction: column;
-            /* Stack base and fingers area */
             align-items: center;
             padding-top: 20px;
-            /* Space for fingers to open */
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            flex-shrink: 0;
         }
 
         .gripper-arm-area {
             width: 100%;
             height: 250px;
-            /* Area for fingers and object */
             position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            /* Vertically center the object roughly */
         }
 
         .gripper-base {
             width: 80px;
             height: 80px;
-            /* Height of the base block */
             background-color: #555;
             position: absolute;
             top: 0px;
-            /* At the bottom of gripper-visualization */
             left: 50%;
             transform: translateX(-50%);
-            border-radius: 0 0 5px 5px;
         }
+
 
         .finger {
             width: 30px;
@@ -73,31 +82,22 @@
             background-color: #777;
             position: absolute;
             top: 40px;
-            /* Positioned relative to gripper-arm-area, above base */
             border: 1px solid #444;
             border-radius: 5px;
             transition: transform 0.3s ease-out;
+            transform-origin: 50% 0%;
         }
 
         #left-finger {
             left: calc(50% - 35px - 15px);
-            /* (Center - half finger width - gap) */
-            transform-origin: 50% 0%;
-            /* Pivot at bottom center of finger */
             transform: rotate(-15deg);
-            /* Initial open angle */
         }
 
         #right-finger {
             right: calc(50% - 35px - 15px);
-            /* (Center - half finger width - gap) */
-            transform-origin: 50% 0%;
-            /* Pivot at bottom center of finger */
             transform: rotate(15deg);
-            /* Initial open angle */
         }
 
-        /* Optional: Add detail to fingers like the image */
         .finger::before {
             content: '';
             position: absolute;
@@ -110,7 +110,6 @@
         }
 
         .finger::after {
-            /* Gripping pad */
             content: '';
             position: absolute;
             top: 30px;
@@ -122,20 +121,16 @@
             border-radius: 3px;
         }
 
-
         #object-ball {
             width: 50px;
             height: 50px;
             background-color: dodgerblue;
             border-radius: 50%;
             position: absolute;
-            /* Centered in the gripper-arm-area, adjust top as needed */
             top: calc(50% - 25px + 20px);
-            /* Nudge it down a bit */
             left: calc(50% - 27px);
-            transition: background-color 0.3s ease;
+            transition: background-color 0.3s ease, border 0.3s ease;
             z-index: 5;
-            /* Above fingers if they overlap slightly */
             border: 3px solid rgba(255, 255, 255, 0);
         }
 
@@ -151,18 +146,75 @@
             border: 3px solid darkred;
         }
 
+        /* Gear Visualization Styles */
+        .gear-visualization {
+            width: 150px;
+            height: 180px;
+            /* Extra height for label */
+            background-color: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            box-sizing: border-box;
+        }
 
+        .gear-visualization p {
+            margin: 0 0 10px 0;
+            font-size: 0.9em;
+            color: #555;
+            text-align: center;
+        }
+
+        #gear-display {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background-color: #ddd;
+            position: relative;
+            border: 3px solid #bbb;
+        }
+
+        #gear-pointer {
+            width: 50%;
+            /* Half the diameter */
+            height: 4px;
+            background-color: #333;
+            position: absolute;
+            top: calc(50% - 2px);
+            /* Center the pointer vertically */
+            left: 50%;
+            /* Start drawing from the center */
+            transform-origin: 0% 50%;
+            /* Rotate around the left end (center of the gear) */
+            /* Initial rotation can be 0deg */
+        }
+
+
+        .controls-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex-grow: 1;
+            max-width: 350px;
+        }
+
+        .serial-controls,
         .status-panel,
         .simulation-controls {
             background-color: #fff;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 350px;
             box-sizing: border-box;
+            width: 100%;
         }
 
+        .serial-controls h2,
         .status-panel h2,
         .simulation-controls h2 {
             margin-top: 0;
@@ -171,12 +223,34 @@
             padding-bottom: 10px;
         }
 
+        .serial-controls p,
+        .serial-controls button,
         .status-panel p,
         .simulation-controls label {
             margin: 10px 0;
             font-size: 0.9em;
             color: #555;
         }
+
+        .serial-controls button {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        .serial-controls button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .serial-controls button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
 
         .status-panel span {
             font-weight: bold;
@@ -206,53 +280,73 @@
     <h1>Robotic Gripper Control Panel</h1>
 
     <div class="container">
-        <div class="gripper-visualization">
-            <div class="gripper-arm-area">
-                <div id="left-finger" class="finger"></div>
-                <div id="right-finger" class="finger"></div>
-                <div id="object-ball"></div>
+        <div class="visualization-column">
+            <div class="gripper-visualization">
+                <div class="gripper-base"></div>
+                <div class="gripper-arm-area">
+                    <div id="left-finger" class="finger"></div>
+                    <div id="right-finger" class="finger"></div>
+                    <div id="object-ball"></div>
+                </div>
             </div>
-            <div class="gripper-base"></div>
+            <div class="gear-visualization">
+                <p>Motor Gear Rotation</p>
+                <div id="gear-display">
+                    <div id="gear-pointer"></div>
+                </div>
+            </div>
         </div>
 
-        <div class="status-panel">
-            <h2>Hardware Outputs</h2>
-            <p>Angle Sensor (TLE5012B): <span id="angle-output">15</span>°</p>
-            <p>Magnetic Sensor (TLx493D - Gripped): <span id="gripped-output">No</span></p>
-            <p>Motor Controller Status: <span id="motor-output">Idle</span></p>
-            <hr>
-            <h2>Object Properties</h2>
-            <p>Object Type: <span id="object-type-output">N/A</span></p>
-        </div>
+        <div class="controls-column">
+            <div class="serial-controls">
+                <h2>Serial Connection</h2>
+                <button id="connect-serial-btn">Connect to Gripper</button>
+                <button id="disconnect-serial-btn" disabled>Disconnect</button>
+                <p>Status: <span id="serial-status">Not Connected</span></p>
+            </div>
 
-        <div class="simulation-controls">
-            <h2>Simulator Controls (Mimics Hardware)</h2>
+            <div class="status-panel">
+                <h2>Hardware Outputs</h2>
+                <p>Gripper Angle (TLE5012B): <span id="angle-output">15</span>°</p>
+                <p>Raw Gear Angle: <span id="raw-gear-angle-output">0</span>°</p>
+                <p>Gear Revolutions: <span id="gear-revolutions-output">0</span></p>
+                <p>Magnetic Sensor (TLx493D - Gripped): <span id="gripped-output">No</span></p>
+                <p>Motor Controller Status: <span id="motor-output">Idle</span></p>
+                <hr>
+                <h2>Object Properties</h2>
+                <p>Object Type: <span id="object-type-output">N/A</span></p>
+            </div>
 
-            <label for="sim-angle">Gripper Angle (0° closed, 45° open):
-                <input type="range" id="sim-angle" min="0" max="45" value="15">
-                <span id="sim-angle-value">15</span>°
-            </label>
+            <div class="simulation-controls">
+                <h2>Simulator Controls (Mimics Hardware)</h2>
+                <p><em>Simulation of gear angle not added yet. Values come from serial.</em></p>
 
-            <label for="sim-gripped">
-                <input type="checkbox" id="sim-gripped"> Simulate Object Gripped (TLx493D)
-            </label>
+                <label for="sim-angle">Gripper Angle (0° closed, 45° open):
+                    <input type="range" id="sim-angle" min="0" max="45" value="15">
+                    <span id="sim-angle-value">15</span>°
+                </label>
 
-            <label for="sim-object-type">Simulate Object Type:
-                <select id="sim-object-type">
-                    <option value="N/A" selected>N/A</option>
-                    <option value="soft">Soft</option>
-                    <option value="rigid">Rigid</option>
-                </select>
-            </label>
+                <label for="sim-gripped">
+                    <input type="checkbox" id="sim-gripped"> Simulate Object Gripped (TLx493D)
+                </label>
 
-            <label for="sim-motor-status">Simulate Motor Status:
-                <select id="sim-motor-status">
-                    <option value="Idle">Idle</option>
-                    <option value="Moving: Closing">Moving: Closing</option>
-                    <option value="Moving: Opening">Moving: Opening</option>
-                    <option value="Stalled">Stalled</option>
-                </select>
-            </label>
+                <label for="sim-object-type">Simulate Object Type:
+                    <select id="sim-object-type">
+                        <option value="N/A" selected>N/A</option>
+                        <option value="soft">Soft</option>
+                        <option value="rigid">Rigid</option>
+                    </select>
+                </label>
+
+                <label for="sim-motor-status">Simulate Motor Status:
+                    <select id="sim-motor-status">
+                        <option value="Idle">Idle</option>
+                        <option value="Moving: Closing">Moving: Closing</option>
+                        <option value="Moving: Opening">Moving: Opening</option>
+                        <option value="Stalled">Stalled</option>
+                    </select>
+                </label>
+            </div>
         </div>
     </div>
 
@@ -261,12 +355,17 @@
         const leftFinger = document.getElementById('left-finger');
         const rightFinger = document.getElementById('right-finger');
         const objectBall = document.getElementById('object-ball');
+        const gearPointer = document.getElementById('gear-pointer');
+
 
         // Output Displays
         const angleOutput = document.getElementById('angle-output');
         const grippedOutput = document.getElementById('gripped-output');
         const motorOutput = document.getElementById('motor-output');
         const objectTypeOutput = document.getElementById('object-type-output');
+        const rawGearAngleOutput = document.getElementById('raw-gear-angle-output');
+        const gearRevolutionsOutput = document.getElementById('gear-revolutions-output');
+
 
         // Simulator Controls
         const simAngleSlider = document.getElementById('sim-angle');
@@ -275,51 +374,81 @@
         const simObjectTypeSelect = document.getElementById('sim-object-type');
         const simMotorStatusSelect = document.getElementById('sim-motor-status');
 
-        // --- Event Listeners for Simulators ---
+        // Serial Connection Elements
+        const connectSerialButton = document.getElementById('connect-serial-btn');
+        const disconnectSerialButton = document.getElementById('disconnect-serial-btn');
+        const serialStatusDisplay = document.getElementById('serial-status');
 
+        // Serial Port Variables
+        let port;
+        let reader;
+        let readableStreamClosed; // Promise from port.readable.pipeTo()
+        let keepReading = false;
+        let lineBuffer = '';
+
+        // Revolution Counting Variables
+        let previousGearAngle = null; // Store previous angle to detect crossover
+        let gearRevolutions = 0;
+        const ANGLE_THRESHOLD = 270; // e.g. if prev > 270 and current < 90, it's a crossover to next rev
+        // e.g. if prev < 90 and current > 270, it's a crossover to prev rev
+        const MIN_ANGLE_FOR_CROSSOVER = 90; // Counterpart for ANGLE_THRESHOLD
+
+        // Gripper Mechanics Constants
+        const GRIPPER_MAX_VISUAL_ANGLE_DEG = 45;
+        const GRIPPER_MIN_VISUAL_ANGLE_DEG = 0;
+        const SMALL_GEAR_SPAN_FOR_GRIPPER_RANGE_DEG = 6 * 180; // 1080 degrees for full 0-45 gripper travel
+
+
+        // --- Event Listeners for Simulators ---
         simAngleSlider.addEventListener('input', (event) => {
-            const angle = parseInt(event.target.value);
-            updateGripperAngle(angle);
-            simAngleValueDisplay.textContent = angle; // Update slider value display
-            // Simulate motor moving if angle changes
-            if (angle < parseInt(angleOutput.textContent)) {
-                updateMotorStatus("Moving: Closing");
-            } else if (angle > parseInt(angleOutput.textContent)) {
-                updateMotorStatus("Moving: Opening");
-            }
-            // After a short delay, set motor to idle (simulation)
-            setTimeout(() => {
-                if (simMotorStatusSelect.value.startsWith("Moving")) { // only if it was moving
-                    updateMotorStatusBasedOnSelect(); // or revert to selected if not idle
+            const newAngle = parseInt(event.target.value);
+            const oldAngle = parseInt(angleOutput.textContent);
+            const intendedMotorStatus = simMotorStatusSelect.value;
+
+            updateGripperAngleDisplay(newAngle); // Updates visuals and angleOutput.textContent
+            simAngleValueDisplay.textContent = newAngle;
+
+            if (newAngle !== oldAngle) {
+                let transientMotorStatus = "";
+                if (newAngle < oldAngle) {
+                    transientMotorStatus = "Moving: Closing";
+                } else {
+                    transientMotorStatus = "Moving: Opening";
                 }
-            }, 500);
+                updateMotorStatusDisplay(transientMotorStatus);
+
+                setTimeout(() => {
+                    if (motorOutput.textContent === transientMotorStatus) {
+                        updateMotorStatusDisplay(intendedMotorStatus);
+                    }
+                }, 500);
+            }
         });
 
         simGrippedCheckbox.addEventListener('change', (event) => {
-            updateGripStatus(event.target.checked);
+            updateGripStatusDisplay(event.target.checked);
         });
 
         simObjectTypeSelect.addEventListener('change', (event) => {
-            updateObjectType(event.target.value);
+            updateObjectTypeDisplay(event.target.value);
         });
 
         simMotorStatusSelect.addEventListener('change', (event) => {
-            updateMotorStatus(event.target.value);
+            if (!motorOutput.textContent.startsWith("Moving:") || motorOutput.textContent === event.target.value) {
+                updateMotorStatusDisplay(event.target.value);
+            }
         });
 
-
-        // --- Update Functions ---
-
-        function updateGripperAngle(angle) {
-            // Angle is per finger, from vertical. 0 = closed, 45 = max open.
-            // The TLE5012B would provide a raw angle, which would then be mapped.
-            // Here, 'angle' is the desired opening angle for each finger.
+        // --- Update Functions (Display & Visuals) ---
+        function updateGripperAngleDisplay(angle) {
+            // Use the raw angle for transformations for precision
             leftFinger.style.transform = `rotate(${angle}deg)`;
             rightFinger.style.transform = `rotate(${-angle}deg)`;
-            angleOutput.textContent = `${angle}`; // Display the finger opening angle
+            // Display a rounded angle in the text output
+            angleOutput.textContent = `${Math.round(angle)}`;
         }
 
-        function updateGripStatus(isGripped) {
+        function updateGripStatusDisplay(isGripped) {
             if (isGripped) {
                 objectBall.classList.add('gripped');
                 grippedOutput.textContent = 'Yes';
@@ -329,8 +458,9 @@
             }
         }
 
-        function updateObjectType(type) {
-            objectTypeOutput.textContent = type.charAt(0).toUpperCase() + type.slice(1); // Capitalize
+        function updateObjectTypeDisplay(type) {
+            const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
+            objectTypeOutput.textContent = capitalizedType;
             objectBall.classList.remove('soft', 'rigid');
             if (type === 'soft') {
                 objectBall.classList.add('soft');
@@ -339,35 +469,259 @@
             }
         }
 
-        function updateMotorStatus(status) {
+        function updateMotorStatusDisplay(status) {
             motorOutput.textContent = status;
-            // If motor status is set from outside (like angle change), update the dropdown
-            if (simMotorStatusSelect.value !== status) {
-                // Check if the status is a valid option, otherwise don't change select
-                const options = Array.from(simMotorStatusSelect.options).map(opt => opt.value);
-                if (options.includes(status)) {
-                    simMotorStatusSelect.value = status;
+            const options = Array.from(simMotorStatusSelect.options).map(opt => opt.value);
+            if (options.includes(status)) {
+                simMotorStatusSelect.value = status;
+            }
+        }
+
+        function updateGearRotation(currentAngleDegrees) {
+            // Normalize angle to be 0-359.999 for calculations if it comes as 360
+            currentAngleDegrees = currentAngleDegrees % 360;
+
+            rawGearAngleOutput.textContent = `${currentAngleDegrees.toFixed(1)}`;
+            gearPointer.style.transform = `rotate(${currentAngleDegrees}deg)`;
+
+            if (previousGearAngle !== null) {
+                // Check for crossover from ~359 to ~0 (clockwise)
+                if (previousGearAngle > ANGLE_THRESHOLD && currentAngleDegrees < MIN_ANGLE_FOR_CROSSOVER) {
+                    gearRevolutions++;
+                }
+                // Check for crossover from ~0 to ~359 (counter-clockwise)
+                else if (previousGearAngle < MIN_ANGLE_FOR_CROSSOVER && currentAngleDegrees > ANGLE_THRESHOLD) {
+                    gearRevolutions--;
+                }
+            }
+            previousGearAngle = currentAngleDegrees;
+            gearRevolutionsOutput.textContent = gearRevolutions;
+
+            // --- New code for gripper finger update based on gear rotation ---
+            let totalAccumulatedSmallGearRotationDeg = (gearRevolutions * 360) + currentAngleDegrees;
+
+            let newGripperFingerAngle =
+                (totalAccumulatedSmallGearRotationDeg / SMALL_GEAR_SPAN_FOR_GRIPPER_RANGE_DEG) *
+                (GRIPPER_MAX_VISUAL_ANGLE_DEG - GRIPPER_MIN_VISUAL_ANGLE_DEG) +
+                GRIPPER_MIN_VISUAL_ANGLE_DEG;
+
+            // Clamp the angle to the visual range [GRIPPER_MIN_VISUAL_ANGLE_DEG, GRIPPER_MAX_VISUAL_ANGLE_DEG]
+            newGripperFingerAngle = Math.max(GRIPPER_MIN_VISUAL_ANGLE_DEG, Math.min(newGripperFingerAngle, GRIPPER_MAX_VISUAL_ANGLE_DEG));
+
+            updateGripperAngleDisplay(newGripperFingerAngle);
+
+            // Update the simulator slider to reflect the hardware-driven angle when connected
+            if (port && port.readable) { // Check if serial is connected
+                simAngleSlider.value = newGripperFingerAngle;
+                // Update the text display next to the slider
+                simAngleValueDisplay.textContent = Math.round(newGripperFingerAngle);
+            }
+            // --- End of new code ---
+        }
+
+        // --- Serial Connection Functions ---
+        connectSerialButton.addEventListener('click', async () => {
+            if (!('serial' in navigator)) {
+                alert('Web Serial API not supported by your browser. Try Chrome or Edge.');
+                return;
+            }
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+
+                serialStatusDisplay.textContent = 'Connected';
+                connectSerialButton.disabled = true;
+                disconnectSerialButton.disabled = false;
+                setSimulatorControlsEnabled(false);
+
+                // Reset revolution counting on new connection
+                previousGearAngle = null;
+                gearRevolutions = 0;
+                updateGearRotation(0); // Reset visual to 0
+                gearRevolutionsOutput.textContent = gearRevolutions;
+
+
+                keepReading = true;
+                lineBuffer = '';
+
+                const textDecoder = new TextDecoderStream();
+                readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                reader = textDecoder.readable.getReader();
+
+                readLoop();
+            } catch (error) {
+                serialStatusDisplay.textContent = `Error: ${error.message}`;
+                console.error('Failed to connect or open port:', error);
+                if (port && port.readable) {
+                    if (reader) reader.cancel().catch(() => { });
+                    if (readableStreamClosed) readableStreamClosed.catch(() => { });
+                    port.close().catch(() => { });
+                }
+                port = null;
+                reader = null;
+            }
+        });
+
+        disconnectSerialButton.addEventListener('click', async () => {
+            keepReading = false;
+
+            if (reader) {
+                try {
+                    await reader.cancel();
+                } catch (error) {
+                    console.warn('Error cancelling reader:', error);
+                }
+            }
+
+            if (readableStreamClosed) {
+                try {
+                    await readableStreamClosed.catch(() => { });
+                } catch (error) {
+                    console.warn('Error awaiting readableStreamClosed:', error);
+                }
+            }
+
+            reader = null;
+
+            if (port) {
+                try {
+                    await port.close();
+                } catch (error) {
+                    serialStatusDisplay.textContent = `Error closing port: ${error.message}`;
+                    console.error('Error closing port:', error);
+                }
+            }
+
+            port = null;
+            serialStatusDisplay.textContent = 'Not Connected';
+            connectSerialButton.disabled = false;
+            disconnectSerialButton.disabled = true;
+            setSimulatorControlsEnabled(true);
+            initializeSimulatorDefaults();
+        });
+
+        async function readLoop() {
+            try {
+                while (port && port.readable && keepReading && reader) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    lineBuffer += value;
+                    let newlineIndex;
+                    while ((newlineIndex = lineBuffer.indexOf('\n')) !== -1) {
+                        const line = lineBuffer.substring(0, newlineIndex).trim();
+                        lineBuffer = lineBuffer.substring(newlineIndex + 1);
+                        if (line) {
+                            processSerialLine(line);
+                        }
+                    }
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Read loop error:', error);
+                    if (serialStatusDisplay.textContent.startsWith("Connected")) {
+                        serialStatusDisplay.textContent = `Read Error: ${error.message}. Try Disconnecting.`;
+                    }
+                }
+            } finally {
+                if (keepReading && port) {
+                    console.log("Readloop ended unexpectedly. Cleaning up.");
+                    await manualDisconnectCleanup();
                 }
             }
         }
 
-        function updateMotorStatusBasedOnSelect() {
-            updateMotorStatus(simMotorStatusSelect.value);
+        async function manualDisconnectCleanup() {
+            keepReading = false;
+            if (reader) {
+                try { await reader.cancel(); } catch (e) { console.warn("Reader cancel on manual cleanup failed:", e); }
+            }
+            if (readableStreamClosed) {
+                try { await readableStreamClosed.catch(() => { }); } catch (e) { console.warn("readableStreamClosed on manual cleanup failed:", e); }
+            }
+            if (port) {
+                try { await port.close(); } catch (e) { console.warn("Port close on manual cleanup failed:", e); }
+            }
+
+            port = null;
+            reader = null;
+            serialStatusDisplay.textContent = 'Disconnected (connection lost)';
+            connectSerialButton.disabled = false;
+            disconnectSerialButton.disabled = true;
+            setSimulatorControlsEnabled(true);
+            initializeSimulatorDefaults();
+        }
+
+
+        function processSerialLine(line) {
+            try {
+                const data = JSON.parse(line);
+                // console.log('Received data:', data);
+
+                // Raw Gear Angle (0-360 degrees)
+                if (data.angle !== undefined) {
+                    const gearAngle = parseFloat(data.angle);
+                    // gearAngle is in radians
+                    // Convert to degrees for display
+                    const gearAngleDegrees = (gearAngle * 180) / Math.PI;
+                    updateGearRotation(gearAngleDegrees);
+                }
+
+                // NOTE: gripped value is currently not implemented in the hardware
+                // if (data.gripped !== undefined) {
+                //     const isGripped = Boolean(data.gripped);
+                //     updateGripStatusDisplay(isGripped);
+                //     simGrippedCheckbox.checked = isGripped;
+                // }
+
+                // NOTE: Object type is currently not implemented in the hardware
+                // if (data.objectType !== undefined) {
+                //     updateObjectTypeDisplay(data.objectType);
+                //     simObjectTypeSelect.value = data.objectType;
+                // }
+
+                // NOTE: Motor status is currently not implemented in the hardware
+                // if (data.motorStatus !== undefined) {
+                //     updateMotorStatusDisplay(data.motorStatus);
+                // }
+            } catch (error) {
+                console.error('Error parsing JSON from serial or updating UI:', error, 'Line:', line);
+            }
+        }
+
+        function setSimulatorControlsEnabled(enabled) {
+            simAngleSlider.disabled = !enabled;
+            simGrippedCheckbox.disabled = !enabled;
+            simObjectTypeSelect.disabled = !enabled;
+            simMotorStatusSelect.disabled = !enabled;
+            // Note: Gear angle simulation is not implemented, so no control for it.
         }
 
         // --- Initialization ---
-        function initialize() {
-            const initialAngle = parseInt(simAngleSlider.value);
-            updateGripperAngle(initialAngle);
-            simAngleValueDisplay.textContent = initialAngle;
+        function initializeSimulatorDefaults() {
+            updateGripperAngleDisplay(parseInt(simAngleSlider.value));
+            simAngleValueDisplay.textContent = simAngleSlider.value;
+            updateGripStatusDisplay(simGrippedCheckbox.checked);
+            updateObjectTypeDisplay(simObjectTypeSelect.value);
+            updateMotorStatusDisplay(simMotorStatusSelect.value);
+            // Initialize gear display (static for simulator since no control)
+            updateGearRotation(0); // Or last known value if we decide to store it
+            gearRevolutionsOutput.textContent = gearRevolutions; // Show current rev count
+        }
 
-            updateGripStatus(simGrippedCheckbox.checked);
-            updateObjectType(simObjectTypeSelect.value);
-            updateMotorStatus(simMotorStatusSelect.value);
+        function initializeApp() {
+            initializeSimulatorDefaults();
+            setSimulatorControlsEnabled(true);
+            if (!('serial' in navigator)) {
+                connectSerialButton.title = 'Web Serial API not supported in this browser.';
+                connectSerialButton.style.backgroundColor = '#aaa';
+                connectSerialButton.disabled = true;
+            }
         }
 
         // Initialize on load
-        initialize();
+        initializeApp();
 
     </script>
 </body>
