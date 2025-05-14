@@ -34,8 +34,9 @@ struct stateStruct{
     float x_filtered=0;
     float y_filtered=0;
     float z_filtered=0;
-    float magneticAlphaFilter=0.05;
+    float magneticAlphaFilter=0.02;
     int numberOfRevolutions=0;
+    
 };
 struct PIDStruct{
     float k;
@@ -130,10 +131,23 @@ void readInputs(InputDataStruct &inputData) {
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
   filterMagneticData();
-  if (stateDataLoop.zeroing)
-      zeriongFunc();
+  stateDataLoop.target_voltage=0;//kasnije ovo izmeniti
   discretePID();
   gripperPositionTracking();
+  if (inputData.button2==LOW)
+  {
+    stateDataLoop.target_voltage = 1;
+    stateDataLoop.gripping=false;
+  } 
+  if (inputData.button1==LOW)
+  {
+    stateDataLoop.gripping=true;
+  }
+  if (stateDataLoop.gripping)
+    findingStablePosition();
+   
+  if (stateDataLoop.zeroing)
+      zeriongFunc();
   outputDataLoop.target_voltage=stateDataLoop.target_voltage;
 }
 void outputResults(OutputDataStruct &outputData){
@@ -152,9 +166,9 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     Serial.print(inputData.tleSensor);
     Serial.println();
 */
-Serial.print("{\"angle\":");
-Serial.print(stateDataLoop.absoluteAngle);
-Serial.println("}");
+Serial.print(filterMagneticData.x_filtered);
+Serial.print(",");
+Serial.println(outputData.target_voltage==0?0:1);
 }
 
 void discretePID()
@@ -230,8 +244,9 @@ void initDiscretePID()
 
 void zeriongFunc() {
   // Initialize total path traveled (sum of absolute movements).
-  if (abs(stateDataLoop.x_filtered)<0.1)
+  if (abs(stateDataLoop.x_filtered)<0.07)
   {
+    
     stateDataLoop.target_voltage=-1;
     Serial.println("zeroing in progress");
     Serial.println(stateDataLoop.x_filtered);
@@ -273,6 +288,24 @@ void filterMagneticData() {
   stateDataLoop.z_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.z_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.z;
 }
 
+void findingStablePosition() {
+  // Implement the logic to find the stable position of the gripper
+  // This function can be called when the gripper is not gripping
+  // and you want to find a stable position based on the magnetic field data.
+  // You can use the filtered magnetic data (x_filtered, y_filtered, z_filtered)
+  // to determine the stable position.
+  if(abs(stateDataLoop.x_filtered)>0.1)
+  {
+    stateDataLoop.target_voltage=0;
+    
+  }
+  else
+  {
+    stateDataLoop.target_voltage=-5;
+    
+  }
+
+}
 void setup() {
   // use monitoring with serial
   Serial.begin(115200);
