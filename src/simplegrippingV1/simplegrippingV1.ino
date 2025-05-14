@@ -27,9 +27,11 @@ struct stateStruct{
 };
 struct PIDStruct{
     float k;
+    long T;
     long T_old;
     long T_passed;
     float Ti;
+    float Td;
     float Tt;
     float N=5;
     float umax;
@@ -41,6 +43,8 @@ struct PIDStruct{
     float v;
     float I;
     float y_old;
+    float b;
+    float u;
 };
 //
 InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
@@ -158,15 +162,15 @@ void discretePID()
   PIDDataLoop.T=PIDDataLoop.T_passed-PIDDataLoop.T_old;
   PIDDataLoop.T_old=PIDDataLoop.T_passed;
 
-  bi=(PIDDataLoop.k*PIDDataLoop.T)/PIDDataLoop.Ti;
-  br=PIDDataLoop.T/PIDDataLoop.Tt;
-  ad=PIDDataLoop.Td/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
-  bd=(PIDDataLoop.k*PIDDataLoop.Td*PIDDataLoop.N)/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
+  float bi=(PIDDataLoop.k*PIDDataLoop.T)/PIDDataLoop.Ti;
+  float br=PIDDataLoop.T/PIDDataLoop.Tt;
+  float ad=PIDDataLoop.Td/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
+  float bd=(PIDDataLoop.k*PIDDataLoop.Td*PIDDataLoop.N)/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
 
   PIDDataLoop.y=inputDataLoop.targetVoltage;
   PIDDataLoop.r=inputDataLoop.x;
   PIDDataLoop.P=PIDDataLoop.k*(PIDDataLoop.b*PIDDataLoop.r-PIDDataLoop.y);
-  PIDDataLoop.D=ad*PIDDataLoop.D-PIDDataLoop.bd*(y-PIDDataLoop.y_old);
+  PIDDataLoop.D=ad*PIDDataLoop.D-bd*(PIDDataLoop.y-PIDDataLoop.y_old);
   
   PIDDataLoop.v=PIDDataLoop.P+PIDDataLoop.I+PIDDataLoop.D;
   
@@ -198,7 +202,7 @@ void initDiscretePID()
   PIDDataLoop.y_old=0;
   PIDDataLoop.y=0;
   PIDDataLoop.r=0;
-  PIDDataLoop.T_old=milis();
+  PIDDataLoop.T_old=millis();
 
   /*
       float k;
