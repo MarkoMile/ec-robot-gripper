@@ -1,11 +1,16 @@
 
 #include "TLE5012Sensor.h"
 #include "TLx493D_inc.hpp"
-#include "config.h"
 #include <SimpleFOC.h>
+#define ENABLE_MAGNETIC_SENSOR true
+
+// Enable or disable commander functionality, please check: https://docs.simplefoc.com/commander_interface
+#define ENABLE_COMMANDER false
+
+#define ENABLE_READ_ANGLE false
 
 struct InputDataStruct{
- double x, y, z;
+ double x, y, z,x_old=0.0;
  float tleSensor;
  float targetVoltage;
  bool button1;
@@ -27,7 +32,6 @@ struct stateStruct{
 };
 struct PIDStruct{
     float k;
-    long T;
     long T_old;
     long T_passed;
     float Ti;
@@ -43,8 +47,7 @@ struct PIDStruct{
     float v;
     float I;
     float y_old;
-    float b;
-    float u;
+    
 };
 //
 InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
@@ -117,20 +120,8 @@ void readInputs(InputDataStruct &inputData) {
   inputData.tleSensor=tle5012Sensor.getSensorAngle();
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
-  
-  discretePID();
-  if (stateDataLoop.gripping){
-    outputData.target_voltage = -1; // close grippe
-  
-  } else {
-    // no button pressed
-    outputData.target_voltage = 0;
-  }
-  Serial.println(outputData.target_voltage);
-  if (abs(inputData.x) >0.5) {
-    // x-axis value is greater than 0.5
-    outputData.target_voltage = 0;
-  }
+  float alpha=0.06;
+  inputData.x_old=alpha*inputData.x+(1-alpha)*inputData.x_old;
 }
 void outputResults(OutputDataStruct &outputData){
 
@@ -139,87 +130,21 @@ void outputResults(OutputDataStruct &outputData){
 }
 void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData){
 
+    Serial.print(inputData.x_old);
+    Serial.print(",");
+
     Serial.print(inputData.x);
     Serial.print(",");
-    Serial.print(inputData.y);
+
+    Serial.print(2);
     Serial.print(",");
-    Serial.print(inputData.z);
+
+    Serial.print(-2);
     Serial.print(",");
-    Serial.print(inputData.tleSensor);
-    Serial.println();
+    Serial.println(0);
+
     
     
-}
-
-void discretePID()
-{
-  // Implement the discrete PID control logic here
-  // This function is called in the loop() function
-  // to perform the PID control calculations
-  // and update the motor's target voltage accordingly.
-  // You can use the inputData and outputData structures
-  PIDDataLoop.T_passed=millis();
-  PIDDataLoop.T=PIDDataLoop.T_passed-PIDDataLoop.T_old;
-  PIDDataLoop.T_old=PIDDataLoop.T_passed;
-
-  float bi=(PIDDataLoop.k*PIDDataLoop.T)/PIDDataLoop.Ti;
-  float br=PIDDataLoop.T/PIDDataLoop.Tt;
-  float ad=PIDDataLoop.Td/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
-  float bd=(PIDDataLoop.k*PIDDataLoop.Td*PIDDataLoop.N)/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
-
-  PIDDataLoop.y=inputDataLoop.targetVoltage;
-  PIDDataLoop.r=inputDataLoop.x;
-  PIDDataLoop.P=PIDDataLoop.k*(PIDDataLoop.b*PIDDataLoop.r-PIDDataLoop.y);
-  PIDDataLoop.D=ad*PIDDataLoop.D-bd*(PIDDataLoop.y-PIDDataLoop.y_old);
-  
-  PIDDataLoop.v=PIDDataLoop.P+PIDDataLoop.I+PIDDataLoop.D;
-  
-  if (PIDDataLoop.v>PIDDataLoop.umax)
-    PIDDataLoop.u=PIDDataLoop.umax;
-  else if (PIDDataLoop.v<PIDDataLoop.umin)
-    PIDDataLoop.u=PIDDataLoop.umin;
-  else
-    PIDDataLoop.u=PIDDataLoop.v;
-
-  PIDDataLoop.I=PIDDataLoop.I+bi*(PIDDataLoop.r-PIDDataLoop.y)+br*(PIDDataLoop.u-PIDDataLoop.v);
-  PIDDataLoop.y_old=PIDDataLoop.y;
-
-  
-}
-void initDiscretePID()
-{
-  PIDDataLoop.b=0.9;
-  PIDDataLoop.Ti=1;
-  PIDDataLoop.Tt=1;
-  PIDDataLoop.Td=1;
-  PIDDataLoop.N=6;
-  PIDDataLoop.k=1;
-  PIDDataLoop.P=0;
-  PIDDataLoop.I=0;
-  PIDDataLoop.D=0;
-  PIDDataLoop.umax=1;
-  PIDDataLoop.umin=-1;
-  PIDDataLoop.y_old=0;
-  PIDDataLoop.y=0;
-  PIDDataLoop.r=0;
-  PIDDataLoop.T_old=millis();
-
-  /*
-      float k;
-    float T_old;
-    float T_passed;
-    float Ti;
-    float Tt;
-    float N=5;
-    float umax;
-    float umin;
-    float y;
-    float r;
-    float P;
-    float D;
-    float v;
-    float I;
-    float y_old;*/
 }
 
 
@@ -271,7 +196,6 @@ void setup() {
   calibrateSensor();
   Serial.println("3D magnetic sensor Calibration completed.");
 
-  initDiscretePID();
   // set the pin modes for buttons
   pinMode(BUTTON1, INPUT);
   pinMode(BUTTON2, INPUT);
