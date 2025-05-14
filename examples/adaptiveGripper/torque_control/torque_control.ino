@@ -27,7 +27,7 @@
 #define PIN_SPI1_MOSI 69 // MOSI pin
 #define PIN_SPI1_MISO 95 // MISO pin
 #define PIN_SPI1_SCK 68  // SCK pin
-
+ // Pozdravko
 // create an instance of SPIClass3W for 3-wire SPI communication
 tle5012::SPIClass3W tle5012::SPI3W1(2);
 // create an instance of TLE5012Sensor
