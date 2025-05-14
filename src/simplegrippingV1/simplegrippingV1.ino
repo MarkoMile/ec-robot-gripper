@@ -23,11 +23,30 @@ struct stateStruct{
     float position;
     float velocity;
     bool gripping;
+    float v;
+};
+struct PIDStruct{
+    float k;
+    long T_old;
+    long T_passed;
+    float Ti;
+    float Tt;
+    float N=5;
+    float umax;
+    float umin;
+    float y;
+    float r;
+    float P;
+    float D;
+    float v;
+    float I;
+    float y_old;
 };
 //
 InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
 OutputDataStruct outputDataLoop; // sadrzi izlazne podatke
 stateStruct stateDataLoop; // sadrzi stanje motora
+PIDStruct PIDDataLoop; // sadrzi PID parametre
 // define SPI pins for TLE5012 sensor
 #define PIN_SPI1_SS0 94  // Chip Select (CS) pin
 #define PIN_SPI1_MOSI 69 // MOSI pin
@@ -115,6 +134,7 @@ void outputResults(OutputDataStruct &outputData){
     motor.move(outputData.target_voltage);
 }
 void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData){
+
     Serial.print(inputData.x);
     Serial.print(",");
     Serial.print(inputData.y);
@@ -125,6 +145,77 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     Serial.println();
     
     
+}
+
+void discretePID()
+{
+  // Implement the discrete PID control logic here
+  // This function is called in the loop() function
+  // to perform the PID control calculations
+  // and update the motor's target voltage accordingly.
+  // You can use the inputData and outputData structures
+  PIDDataLoop.T_passed=millis();
+  PIDDataLoop.T=PIDDataLoop.T_passed-PIDDataLoop.T_old;
+  PIDDataLoop.T_old=PIDDataLoop.T_passed;
+
+  bi=(PIDDataLoop.k*PIDDataLoop.T)/PIDDataLoop.Ti;
+  br=PIDDataLoop.T/PIDDataLoop.Tt;
+  ad=PIDDataLoop.Td/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
+  bd=(PIDDataLoop.k*PIDDataLoop.Td*PIDDataLoop.N)/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
+
+  PIDDataLoop.y=inputDataLoop.targetVoltage;
+  PIDDataLoop.r=inputDataLoop.x;
+  PIDDataLoop.P=PIDDataLoop.k*(PIDDataLoop.b*PIDDataLoop.r-PIDDataLoop.y);
+  PIDDataLoop.D=ad*PIDDataLoop.D-PIDDataLoop.bd*(y-PIDDataLoop.y_old);
+  
+  PIDDataLoop.v=PIDDataLoop.P+PIDDataLoop.I+PIDDataLoop.D;
+  
+  if (PIDDataLoop.v>PIDDataLoop.umax)
+    PIDDataLoop.u=PIDDataLoop.umax;
+  else if (PIDDataLoop.v<PIDDataLoop.umin)
+    PIDDataLoop.u=PIDDataLoop.umin;
+  else
+    PIDDataLoop.u=PIDDataLoop.v;
+
+  PIDDataLoop.I=PIDDataLoop.I+bi*(PIDDataLoop.r-PIDDataLoop.y)+br*(PIDDataLoop.u-PIDDataLoop.v);
+  PIDDataLoop.y_old=PIDDataLoop.y;
+
+  
+}
+void initDiscretePID()
+{
+  PIDDataLoop.b=0.9;
+  PIDDataLoop.Ti=1;
+  PIDDataLoop.Tt=1;
+  PIDDataLoop.Td=1;
+  PIDDataLoop.N=6;
+  PIDDataLoop.k=1;
+  PIDDataLoop.P=0;
+  PIDDataLoop.I=0;
+  PIDDataLoop.D=0;
+  PIDDataLoop.umax=1;
+  PIDDataLoop.umin=-1;
+  PIDDataLoop.y_old=0;
+  PIDDataLoop.y=0;
+  PIDDataLoop.r=0;
+  PIDDataLoop.T_old=milis();
+
+  /*
+      float k;
+    float T_old;
+    float T_passed;
+    float Ti;
+    float Tt;
+    float N=5;
+    float umax;
+    float umin;
+    float y;
+    float r;
+    float P;
+    float D;
+    float v;
+    float I;
+    float y_old;*/
 }
 void setup() {
   // use monitoring with serial
