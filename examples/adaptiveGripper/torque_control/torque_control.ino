@@ -27,7 +27,7 @@
 #define PIN_SPI1_MOSI 69 // MOSI pin
 #define PIN_SPI1_MISO 95 // MISO pin
 #define PIN_SPI1_SCK 68  // SCK pin
- // Pozdravko
+                         // Pozdravko
 // create an instance of SPIClass3W for 3-wire SPI communication
 tle5012::SPIClass3W tle5012::SPI3W1(2);
 // create an instance of TLE5012Sensor
@@ -71,7 +71,8 @@ Commander command = Commander(Serial);
 void doTarget(char *cmd) { command.scalar(&target_voltage, cmd); }
 #endif
 
-void setup() {
+void setup()
+{
   // use monitoring with serial
   Serial.begin(115200);
   // enable more verbose output for debugging
@@ -89,7 +90,8 @@ void setup() {
   // as a protection measure for the low-resistance motors
   // this value is fixed on startup
   driver.voltage_limit = 6;
-  if (!driver.init()) {
+  if (!driver.init())
+  {
     Serial.println("Driver init failed!");
     return;
   }
@@ -133,13 +135,19 @@ void setup() {
   _delay(1000);
 }
 
-void loop() {
+void loop()
+{
 #if ENABLE_MAGNETIC_SENSOR
-  if (digitalRead(BUTTON1) == LOW) {
+  if (digitalRead(BUTTON1) == LOW)
+  {
     target_voltage = -3; // close gripper
-  } else if (digitalRead(BUTTON2) == LOW) {
+  }
+  else if (digitalRead(BUTTON2) == LOW)
+  {
     target_voltage = 3; // open gripper
-  } else {
+  }
+  else
+  {
     target_voltage = 0; // stop gripper
   }
   // read the magnetic field data
@@ -152,22 +160,31 @@ void loop() {
   y -= yOffset;
   z -= zOffset;
 
-  // print the magnetic field data
-  Serial.print(x);
-  Serial.print(",");
+  // print the magnetic field data (comma separated)
+  // Serial.print(x);
+  // Serial.print(",");
 
-  Serial.print(y);
-  Serial.print(",");
+  // Serial.print(y);
+  // Serial.print(",");
 
-  Serial.print(z);
-  Serial.println("");
+  // Serial.print(z);
+  // Serial.println("");
+
 #endif
   // update angle sensor data
   tle5012Sensor.update();
 #if ENABLE_READ_ANGLE
-  Serial.print(tle5012Sensor.getSensorAngle());
-  Serial.println("");
+  double sensorAngle = tle5012Sensor.getSensorAngle();
+  // Serial.print(tle5012Sensor.getSensorAngle());
+  // Serial.println("");
 #endif
+
+  // println in json format
+  Serial.println("{\"angle\":" + String(sensorAngle) +
+                 ",\"x\":" + String(x) +
+                 ",\"y\":" + String(y) +
+                 ",\"z\":" + String(z) +
+                 ",\"target_voltage\":" + String(target_voltage) + "}");
   // main FOC algorithm function
   // the faster you run this function the better
   // Arduino UNO loop  ~1kHz
@@ -190,10 +207,12 @@ void loop() {
  * @brief Calibrates the magnetic field sensor by calculating the average
  * offsets for the X, Y, and Z axes over a series of samples.
  */
-void calibrateSensor() {
+void calibrateSensor()
+{
   double sumX = 0, sumY = 0, sumZ = 0;
 
-  for (int i = 0; i < CALIBRATION_SAMPLES; ++i) {
+  for (int i = 0; i < CALIBRATION_SAMPLES; ++i)
+  {
     double temp;
     double valX, valY, valZ;
 
