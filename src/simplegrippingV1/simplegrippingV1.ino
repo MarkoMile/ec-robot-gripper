@@ -15,9 +15,19 @@ struct InputDataStruct{
 struct OutputDataStruct{
     float target_voltage;
 };
+
+struct stateStruct{
+    float target_voltage;
+    float current;
+    float voltage;
+    float position;
+    float velocity;
+    bool gripping;
+};
 //
 InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
 OutputDataStruct outputDataLoop; // sadrzi izlazne podatke
+stateStruct stateDataLoop; // sadrzi stanje motora
 // define SPI pins for TLE5012 sensor
 #define PIN_SPI1_SS0 94  // Chip Select (CS) pin
 #define PIN_SPI1_MOSI 69 // MOSI pin
@@ -60,11 +70,7 @@ const int CALIBRATION_SAMPLES = 20;
 double xOffset = 0, yOffset = 0, zOffset = 0;
 #endif
 
-#if ENABLE_COMMANDER
-// instantiate the commander
-Commander command = Commander(Serial);
-void doTarget(char *cmd) { command.scalar(&target_voltage, cmd); }
-#endif
+
 void readInputs(InputDataStruct &inputData) {
   
   // read the buttons
@@ -79,12 +85,29 @@ void readInputs(InputDataStruct &inputData) {
   inputData.x -= xOffset;
   inputData.y -= yOffset;
   inputData.z -= zOffset;
-
+  if (inputData.button1 == LOW) 
+    stateDataLoop.gripping = true;
+  else if (inputData.button2 == LOW) 
+    stateDataLoop.gripping = false;
+  
   tle5012Sensor.update();
   inputData.tleSensor=tle5012Sensor.getSensorAngle();
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
-    outputData.target_voltage=inputData.targetVoltage;
+  
+  
+  if (stateDataLoop.gripping){
+    outputData.target_voltage = -1; // close grippe
+  
+  } else {
+    // no button pressed
+    outputData.target_voltage = 0;
+  }
+  Serial.println(outputData.target_voltage);
+  if (abs(inputData.x) >0.5) {
+    // x-axis value is greater than 0.5
+    outputData.target_voltage = 0;
+  }
 }
 void outputResults(OutputDataStruct &outputData){
 
@@ -155,11 +178,7 @@ void setup() {
   pinMode(BUTTON2, INPUT);
 
   Serial.print("setup done.\n");
-#if ENABLE_COMMANDER
-  // add target command T
-  command.add('T', doTarget, "target voltage");
-  Serial.println(F("Set the target voltage using serial terminal:"));
-#endif
+
   _delay(1000);
   
 }
