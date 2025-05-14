@@ -64,7 +64,7 @@ Commander command = Commander(Serial);
 void doTarget(char *cmd) { command.scalar(&target_voltage, cmd); }
 #endif
 void readInputs(InputDataStruct &inputData) {
-    #if ENABLE_MAGNETIC_SENSOR
+  
   if (digitalRead(BUTTON1) == LOW) {
     inputData.targetVoltage = -3; // close gripper
   } else if (digitalRead(BUTTON2) == LOW) {
@@ -83,17 +83,27 @@ void readInputs(InputDataStruct &inputData) {
   inputData.z -= zOffset;
 
   tle5012Sensor.update();
-#if ENABLE_READ_ANGLE
-  inputData.tleSensor=tle5012Sensor.getSensorAngle()
-#endif
-#endif
+  inputData.tleSensor=tle5012Sensor.getSensorAngle();
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
     outputData.target_voltage=inputData.targetVoltage;
 }
 void outputResults(OutputDataStruct &outputData){
+
     motor.loopFOC();
     motor.move(outputData.target_voltage);
+}
+void dataProcessing(InputDataStruct &inputData, OutputDataStruct &outputData){
+    Serial.print(inputData.x);
+    Serial.print(",");
+    Serial.print(inputData.y);
+    Serial.print(",");
+    Serial.print(inputData.z);
+    Serial.print(",");
+    Serial.print(inputData.tleSensor);
+    Serial.println();
+    
+    
 }
 void setup() {
   // use monitoring with serial
@@ -136,7 +146,6 @@ void setup() {
   motor.initFOC();
   Serial.println(F("Motor ready."));
 
-#if ENABLE_MAGNETIC_SENSOR
   // start 3D magnetic sensor
   dut.begin();
   // calibrate 3D magnetic sensor to get the offsets
@@ -146,7 +155,6 @@ void setup() {
   // set the pin modes for buttons
   pinMode(BUTTON1, INPUT);
   pinMode(BUTTON2, INPUT);
-#endif
 
   Serial.print("setup done.\n");
 #if ENABLE_COMMANDER
@@ -163,7 +171,7 @@ void loop() {
     readInputs(inputDataLoop);
     executeLogic(inputDataLoop,outputDataLoop);
     outputResults(outputDataLoop);
-
+    dataProcessing(inputDataLoop,outputDataLoop);
   
 #if ENABLE_COMMANDER
   // user communication
