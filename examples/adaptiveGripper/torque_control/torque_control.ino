@@ -154,20 +154,11 @@ void loop() {
 
   // print the magnetic field data
   Serial.print(x);
-  Serial.print(",");
-
-  Serial.print(y);
-  Serial.print(",");
-
-  Serial.print(z);
   Serial.println("");
 #endif
   // update angle sensor data
   tle5012Sensor.update();
-#if ENABLE_READ_ANGLE
-  Serial.print(tle5012Sensor.getSensorAngle());
-  Serial.println("");
-#endif
+
   // main FOC algorithm function
   // the faster you run this function the better
   // Arduino UNO loop  ~1kHz

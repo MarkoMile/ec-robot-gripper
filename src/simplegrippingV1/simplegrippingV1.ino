@@ -114,7 +114,7 @@ void readInputs(InputDataStruct &inputData) {
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
   
-  
+  discretePID();
   if (stateDataLoop.gripping){
     outputData.target_voltage = -1; // close grippe
   
@@ -217,6 +217,9 @@ void initDiscretePID()
     float I;
     float y_old;*/
 }
+
+
+
 void setup() {
   // use monitoring with serial
   Serial.begin(115200);
@@ -264,6 +267,7 @@ void setup() {
   calibrateSensor();
   Serial.println("3D magnetic sensor Calibration completed.");
 
+  initDiscretePID();
   // set the pin modes for buttons
   pinMode(BUTTON1, INPUT);
   pinMode(BUTTON2, INPUT);
@@ -271,7 +275,6 @@ void setup() {
   Serial.print("setup done.\n");
 
   _delay(1000);
-  
 }
 
 void loop() {
@@ -281,10 +284,7 @@ void loop() {
     outputResults(outputDataLoop);
     serialComunication(inputDataLoop,outputDataLoop);
   
-#if ENABLE_COMMANDER
-  // user communication
-  command.run();
-#endif
+
 }
 
 #if ENABLE_MAGNETIC_SENSOR
