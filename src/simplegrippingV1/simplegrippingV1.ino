@@ -573,7 +573,7 @@ void findingStablePosition()
 
       // Add this reading to our elasticity memory
       stateDataLoop.elasticityMemory[stateDataLoop.elasticityMemoryIndex] = angleRate;
-      stateDataLoop.elasticityMemoryIndex = (stateDataLoop.elasticityMemoryIndex + 1) % 5; // Circular buffer
+      stateDataLoop.elasticityMemoryIndex = (stateDataLoop.elasticityMemoryIndex + 1) % 3; // Circular buffer, 3 elem
 
       // Debug output
       // Serial.print("Angle rate: ");
@@ -583,32 +583,20 @@ void findingStablePosition()
       bool isMovingSignificantly = angleRate > stateDataLoop.minAngleChangeRate;
       bool hasMagneticSignal = magneticMagnitude > stateDataLoop.magneticMagnitudeHardThreshold;
 
-      // Calculate average elasticity over the memory buffer for smoother detection
-      // float avgElasticity = 0;
-      // for (int i = 0; i < 5; i++)
-      // {
-      //   avgElasticity += stateDataLoop.elasticityMemory[i];
-      // }
-      // avgElasticity /= 5; // If it's already confirmed as a soft object, we need strong evidence to change our mind
       if (stateDataLoop.isSoftObjectConfirmed)
       {
         // Only consider changing to hard if magnetic signal is much stronger than threshold
-        // AND average elasticity is very low
         // This creates hysteresis to prevent oscillation
-        // if (hasMagneticSignal &&
-        //     avgElasticity < (stateDataLoop.minAngleChangeRate / 2) &&
-        //     magneticMagnitude > (stateDataLoop.magneticMagnitudeHardThreshold * stateDataLoop.softToHardRatio))
-        // {
         if (hasMagneticSignal &&
             !isMovingSignificantly &&
             magneticMagnitude > (stateDataLoop.magneticMagnitudeHardThreshold * stateDataLoop.softToHardRatio))
         {
-          // Require longer confirmation for switching from soft to hard
+          // Require longer confirmation for switching from soft to hard (5x)
           if (stateDataLoop.stallDetectionTime == 0)
           {
             stateDataLoop.stallDetectionTime = currentTime;
           }
-          else if (currentTime - stateDataLoop.stallDetectionTime >= stateDataLoop.stallConfirmationTime * 2)
+          else if (currentTime - stateDataLoop.stallDetectionTime >= stateDataLoop.stallConfirmationTime * 5)
           {
             // Hard object confirmed after extended confirmation period
             stateDataLoop.isSoftObjectConfirmed = false; // No longer confirmed as soft
@@ -802,12 +790,12 @@ float calculateMagneticMagnitude()
 void initAdaptiveGripping()
 { // forces and thresholds and rates:
   // force is negative for gripping (larger absolute value means more force)
-  stateDataLoop.adaptiveGripForce = -1.5;              // Default grip force
-  stateDataLoop.hardObjectForce = -3.5;                // Higher force for hard/heavy objects
-  stateDataLoop.softObjectForce = -1;                  // Lower force for soft/deformable objects
-  stateDataLoop.stallDetectionThreshold = 0.8;         // degrees - minimum angle change expected (lowered for sensitivity)
-  stateDataLoop.stallConfirmationTime = 75;            // Time to confirm object hardness (ms) - increased for stability
-  stateDataLoop.magneticMagnitudeHardThreshold = 0.15; // Threshold for hard object detection using magnitude
+  stateDataLoop.adaptiveGripForce = -1.5;             // Default grip force
+  stateDataLoop.hardObjectForce = -3.5;               // Higher force for hard/heavy objects
+  stateDataLoop.softObjectForce = -1;                 // Lower force for soft/deformable objects
+  stateDataLoop.stallDetectionThreshold = 0.8;        // degrees - minimum angle change expected (lowered for sensitivity)
+  stateDataLoop.stallConfirmationTime = 150;          // Time to confirm object hardness (ms) - increased for stability
+  stateDataLoop.magneticMagnitudeHardThreshold = 0.4; // Threshold for hard object detection using magnitude
   // Note: Initial detection threshold is lower (0.07) to catch all objects
   stateDataLoop.objectDetectionThreshold = 0.08; // magnetic magnitude threshold
   stateDataLoop.minAngleChangeRate = 50;         // Minimum angle change rate for elastic objects (degrees/100ms)
@@ -816,11 +804,11 @@ void initAdaptiveGripping()
 
   // Improved hysteresis values to prevent oscillation
   stateDataLoop.hardToSoftRatio = 2.5; // Reduced from 3.0 for easier transition to soft
-  stateDataLoop.softToHardRatio = 1.8; // Increased from 1.5 for more stability
+  stateDataLoop.softToHardRatio = 5;   // Increased from 1.5 for more stability
 
   // Initialize new detection variables
   stateDataLoop.elasticityCounter = 0;
-  stateDataLoop.elasticityThreshold = 3;
+  stateDataLoop.elasticityThreshold = 2;
   stateDataLoop.elasticityMemoryIndex = 0;
   stateDataLoop.isSoftObjectConfirmed = false;
   stateDataLoop.softObjectConfirmationTime = 0;
