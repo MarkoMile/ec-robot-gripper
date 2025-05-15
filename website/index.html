@@ -90,12 +90,16 @@
 
         #left-finger {
             left: calc(50% - 35px - 15px);
+            /*
             transform: rotate(-15deg);
+            */
         }
 
         #right-finger {
             right: calc(50% - 35px - 15px);
+            /*
             transform: rotate(15deg);
+            */
         }
 
         .finger::before {
@@ -307,7 +311,7 @@
 
             <div class="status-panel">
                 <h2>Hardware Outputs</h2>
-                <p>Gripper Angle (TLE5012B): <span id="angle-output">15</span>°</p>
+                <p>Gripper Angle (TLE5012B): <span id="angle-output">0</span>°</p>
                 <p>Raw Gear Angle: <span id="raw-gear-angle-output">0</span>°</p>
                 <p>Gear Revolutions: <span id="gear-revolutions-output">0</span></p>
                 <p>Magnetic Sensor (TLx493D - Gripped): <span id="gripped-output">No</span></p>
@@ -322,8 +326,8 @@
                 <p><em>Simulation of gear angle not added yet. Values come from serial.</em></p>
 
                 <label for="sim-angle">Gripper Angle (0° closed, 45° open):
-                    <input type="range" id="sim-angle" min="0" max="45" value="15">
-                    <span id="sim-angle-value">15</span>°
+                    <input type="range" id="sim-angle" min="0" max="45" value="0">
+                    <span id="sim-angle-value">0</span>°
                 </label>
 
                 <label for="sim-gripped">
@@ -387,7 +391,6 @@
         let lineBuffer = '';
 
         // Revolution Counting Variables
-        let previousGearAngle = null; // Store previous angle to detect crossover
         let gearRevolutions = 0;
         const ANGLE_THRESHOLD = 270; // e.g. if prev > 270 and current < 90, it's a crossover to next rev
         // e.g. if prev < 90 and current > 270, it's a crossover to prev rev
@@ -479,33 +482,24 @@
         }
 
         function updateGearRotation(currentAngleDegrees) {
-            // Normalize angle to be 0-359.999 for calculations if it comes as 360
-            currentAngleDegrees = currentAngleDegrees % 360;
+            // Normalize angle to be 0-359.999 for calculations because currentAngleDegrees can be 0-1000
+            currentAngleDegreesNormal = currentAngleDegrees % 360;
 
-            rawGearAngleOutput.textContent = `${currentAngleDegrees.toFixed(1)}`;
-            gearPointer.style.transform = `rotate(${currentAngleDegrees}deg)`;
+            rawGearAngleOutput.textContent = `${currentAngleDegreesNormal.toFixed(1)}`;
+            gearPointer.style.transform = `rotate(${currentAngleDegreesNormal}deg)`;
 
-            if (previousGearAngle !== null) {
-                // Check for crossover from ~359 to ~0 (clockwise)
-                if (previousGearAngle > ANGLE_THRESHOLD && currentAngleDegrees < MIN_ANGLE_FOR_CROSSOVER) {
-                    gearRevolutions++;
-                }
-                // Check for crossover from ~0 to ~359 (counter-clockwise)
-                else if (previousGearAngle < MIN_ANGLE_FOR_CROSSOVER && currentAngleDegrees > ANGLE_THRESHOLD) {
-                    gearRevolutions--;
-                }
-            }
-            previousGearAngle = currentAngleDegrees;
+            gearRevolutions = floor(currentAngleDegrees / 360);
             gearRevolutionsOutput.textContent = gearRevolutions;
 
             // --- New code for gripper finger update based on gear rotation ---
-            let totalAccumulatedSmallGearRotationDeg = (gearRevolutions * 360) + currentAngleDegrees;
+            let totalAccumulatedSmallGearRotationDeg = currentAngleDegrees;
 
             let newGripperFingerAngle =
                 (totalAccumulatedSmallGearRotationDeg / SMALL_GEAR_SPAN_FOR_GRIPPER_RANGE_DEG) *
                 (GRIPPER_MAX_VISUAL_ANGLE_DEG - GRIPPER_MIN_VISUAL_ANGLE_DEG) +
                 GRIPPER_MIN_VISUAL_ANGLE_DEG;
 
+                
             // Clamp the angle to the visual range [GRIPPER_MIN_VISUAL_ANGLE_DEG, GRIPPER_MAX_VISUAL_ANGLE_DEG]
             newGripperFingerAngle = Math.max(GRIPPER_MIN_VISUAL_ANGLE_DEG, Math.min(newGripperFingerAngle, GRIPPER_MAX_VISUAL_ANGLE_DEG));
 
@@ -536,7 +530,6 @@
                 setSimulatorControlsEnabled(false);
 
                 // Reset revolution counting on new connection
-                previousGearAngle = null;
                 gearRevolutions = 0;
                 updateGearRotation(0); // Reset visual to 0
                 gearRevolutionsOutput.textContent = gearRevolutions;
@@ -660,13 +653,11 @@
                 const data = JSON.parse(line);
                 // console.log('Received data:', data);
 
-                // Raw Gear Angle (0-360 degrees)
+                // Absolute small gear angle (0-1000 degrees)
                 if (data.angle !== undefined) {
                     const gearAngle = parseFloat(data.angle);
-                    // gearAngle is in radians
-                    // Convert to degrees for display
-                    const gearAngleDegrees = (gearAngle * 180) / Math.PI;
-                    updateGearRotation(gearAngleDegrees);
+                    // gearAngle is in degrees
+                    updateGearRotation(gearAngle);
                 }
 
                 // NOTE: gripped value is currently not implemented in the hardware
