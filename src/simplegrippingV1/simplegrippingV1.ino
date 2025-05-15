@@ -18,6 +18,7 @@ struct OutputDataStruct
   float target_voltage;
 };
 
+const bool DEBUG_LOGS = false;
 struct stateStruct
 {
   float target_voltage;
@@ -262,8 +263,6 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     lastCalibrationState = currentCalibrationState;
   }
 
-  const bool DEBUG_LOGS = true;
-
   // Send detailed status every 200ms
   if (currentTime - lastDetailedStatus >= 200)
   {
@@ -326,15 +325,15 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
       Serial.println(stateDataLoop.elasticityThreshold);
 
       // Calculate average elasticity
-      float avgElasticity = 0;
-      for (int i = 0; i < 5; i++)
-      {
-        avgElasticity += stateDataLoop.elasticityMemory[i];
-      }
-      avgElasticity /= 5;
+      // float avgElasticity = 0;
+      // for (int i = 0; i < 5; i++)
+      // {
+      //   avgElasticity += stateDataLoop.elasticityMemory[i];
+      // }
+      // avgElasticity /= 5;
 
-      Serial.print("Average Elasticity: ");
-      Serial.println(avgElasticity);
+      // Serial.print("Average Elasticity: ");
+      // Serial.println(avgElasticity);
       Serial.print("Soft-to-Hard Ratio: ");
       Serial.println(stateDataLoop.softToHardRatio);
       Serial.print("Hard-to-Soft Ratio: ");
@@ -584,19 +583,23 @@ void findingStablePosition()
       bool hasMagneticSignal = magneticMagnitude > stateDataLoop.magneticMagnitudeHardThreshold;
 
       // Calculate average elasticity over the memory buffer for smoother detection
-      float avgElasticity = 0;
-      for (int i = 0; i < 5; i++)
-      {
-        avgElasticity += stateDataLoop.elasticityMemory[i];
-      }
-      avgElasticity /= 5; // If it's already confirmed as a soft object, we need strong evidence to change our mind
+      // float avgElasticity = 0;
+      // for (int i = 0; i < 5; i++)
+      // {
+      //   avgElasticity += stateDataLoop.elasticityMemory[i];
+      // }
+      // avgElasticity /= 5; // If it's already confirmed as a soft object, we need strong evidence to change our mind
       if (stateDataLoop.isSoftObjectConfirmed)
       {
         // Only consider changing to hard if magnetic signal is much stronger than threshold
         // AND average elasticity is very low
         // This creates hysteresis to prevent oscillation
+        // if (hasMagneticSignal &&
+        //     avgElasticity < (stateDataLoop.minAngleChangeRate / 2) &&
+        //     magneticMagnitude > (stateDataLoop.magneticMagnitudeHardThreshold * stateDataLoop.softToHardRatio))
+        // {
         if (hasMagneticSignal &&
-            avgElasticity < (stateDataLoop.minAngleChangeRate / 2) &&
+            !isMovingSignificantly &&
             magneticMagnitude > (stateDataLoop.magneticMagnitudeHardThreshold * stateDataLoop.softToHardRatio))
         {
           // Require longer confirmation for switching from soft to hard
@@ -611,8 +614,8 @@ void findingStablePosition()
             stateDataLoop.isHardObject = true;
             Serial.print("Soft object changed to hard (magnitude: ");
             Serial.print(magneticMagnitude);
-            Serial.print(", avg elasticity: ");
-            Serial.print(avgElasticity);
+            // Serial.print(", avg elasticity: ");
+            // Serial.print(avgElasticity);
             Serial.println("), increasing grip force");
             stateDataLoop.target_voltage = stateDataLoop.hardObjectForce;
           }
@@ -624,6 +627,7 @@ void findingStablePosition()
         }
       }
       // Not confirmed as soft yet
+
       else if (hasMagneticSignal && !isMovingSignificantly)
       {
         // High magnetic signal but not moving significantly - likely a hard object
@@ -647,7 +651,8 @@ void findingStablePosition()
           }
         }
       }
-      else if ((isMovingSignificantly || avgElasticity > stateDataLoop.minAngleChangeRate) && hasMagneticSignal)
+      // else if ((isMovingSignificantly || avgElasticity > stateDataLoop.minAngleChangeRate) && hasMagneticSignal)
+      else if (isMovingSignificantly && hasMagneticSignal)
       {
         // If we're still moving significantly even with magnetic signal, it's probably elastic/soft
         stateDataLoop.stallDetectionTime = 0;
@@ -662,10 +667,12 @@ void findingStablePosition()
         }
 
         // Check if we have enough evidence for a soft object
-        // We use both a counter threshold AND a time threshold
-        // Also check that average elasticity is above threshold for more reliable classification
-        if ((stateDataLoop.elasticityCounter >= stateDataLoop.elasticityThreshold && avgElasticity > stateDataLoop.minAngleChangeRate) ||
-            (currentTime - stateDataLoop.softObjectConfirmationTime >= stateDataLoop.softConfirmationDuration && avgElasticity > stateDataLoop.minAngleChangeRate))
+        // // We use both a counter threshold AND a time threshold
+        // // Also check that average elasticity is above threshold for more reliable classification
+        // if ((stateDataLoop.elasticityCounter >= stateDataLoop.elasticityThreshold && avgElasticity > stateDataLoop.minAngleChangeRate) ||
+        //     (currentTime - stateDataLoop.softObjectConfirmationTime >= stateDataLoop.softConfirmationDuration && avgElasticity > stateDataLoop.minAngleChangeRate))
+        if (stateDataLoop.elasticityCounter >= stateDataLoop.elasticityThreshold ||
+            (currentTime - stateDataLoop.softObjectConfirmationTime >= stateDataLoop.softConfirmationDuration))
         {
           // Confirm as a soft object
           stateDataLoop.isSoftObjectConfirmed = true;
@@ -675,16 +682,16 @@ void findingStablePosition()
           {
             Serial.print("Hard object changed to soft/elastic (moving at: ");
             Serial.print(angleRate);
-            Serial.print(" deg/s, avg elasticity: ");
-            Serial.print(avgElasticity);
+            // Serial.print(" deg/s, avg elasticity: ");
+            // Serial.print(avgElasticity);
             Serial.println("), applying softer grip force");
           }
           else
           {
             Serial.print("Soft/elastic object confirmed (moving at: ");
             Serial.print(angleRate);
-            Serial.print(" deg/s, avg elasticity: ");
-            Serial.print(avgElasticity);
+            // Serial.print(" deg/s, avg elasticity: ");
+            // Serial.print(avgElasticity);
             Serial.println("), maintaining soft grip force");
           }
 
@@ -734,7 +741,8 @@ void findingStablePosition()
         {
           Serial.println("Potential HARD object: high magnetic signal, low movement");
         }
-        else if ((isMovingSignificantly || avgElasticity > stateDataLoop.minAngleChangeRate) && hasMagneticSignal)
+        // else if ((isMovingSignificantly || avgElasticity > stateDataLoop.minAngleChangeRate) && hasMagneticSignal)
+        else if (isMovingSignificantly && hasMagneticSignal)
         {
           Serial.println("Potential SOFT object: significant movement despite magnetic signal");
         }
@@ -801,7 +809,7 @@ void initAdaptiveGripping()
   stateDataLoop.magneticMagnitudeHardThreshold = 0.15; // Threshold for hard object detection using magnitude
   // Note: Initial detection threshold is lower (0.07) to catch all objects
   stateDataLoop.objectDetectionThreshold = 0.08; // magnetic magnitude threshold
-  stateDataLoop.minAngleChangeRate = 0.5;        // Minimum angle change rate for elastic objects (degrees/100ms)
+  stateDataLoop.minAngleChangeRate = 50;         // Minimum angle change rate for elastic objects (degrees/100ms)
   stateDataLoop.lastMagneticMagnitude = 0.0;
   stateDataLoop.angleChangeRate = 0.0;
 
