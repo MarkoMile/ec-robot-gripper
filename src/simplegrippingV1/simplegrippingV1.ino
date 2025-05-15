@@ -44,19 +44,26 @@ struct stateStruct
   // zeroing tracking variables
   unsigned long zeroLastTime = 0;
   float zeroLastAngle = 0;
-  unsigned long zeroStableStart = 0;
-
-  // Adaptive gripping variables
+  unsigned long zeroStableStart = 0; // Adaptive gripping variables
   bool objectDetected = false;
   bool isHardObject = false;
-  float stallDetectionThreshold = 0.5; // degrees - minimum angle change expected
+  float stallDetectionThreshold; // degrees - minimum angle change expected
   unsigned long stallCheckLastTime = 0;
   float stallCheckLastAngle = 0;
-  unsigned long stallDetectionTime = 0;      // Time when stall was first detected
-  unsigned long stallConfirmationTime = 300; // Time in ms to confirm stall
-  float adaptiveGripForce = -1;              // Default grip force
-  float hardObjectForce = -3;                // Reduced force for hard objects
-  float softObjectForce = -0.1;              // Full force for soft objects
+  unsigned long stallDetectionTime = 0; // Time when stall was first detected
+  unsigned long stallConfirmationTime;  // Time in ms to confirm stall
+  float adaptiveGripForce;              // Default grip force
+  float hardObjectForce;                // Higher force for hard/heavy objects
+  float softObjectForce;                // Lower force for soft/deformable objects
+  float magneticMagnitudeHardThreshold; // Threshold for hard object detection using magnetic magnitude
+  float lastMagneticMagnitude;          // Last measured magnetic magnitude for comparison
+  float angleChangeRate;                // Rate of angle change for elasticity detection
+  float minAngleChangeRate;             // Minimum rate threshold for angle change
+  // Magnetic sensor calibration variables
+  bool calibrationNeeded = false;
+  bool isCalibrating = false;
+  unsigned long calibrationStartTime = 0;
+  unsigned long calibrationDuration = 1500; // Time to complete calibration in ms
 };
 struct PIDStruct
 {
@@ -129,7 +136,6 @@ double xOffset = 0, yOffset = 0, zOffset = 0;
 
 void readInputs(InputDataStruct &inputData)
 {
-
   // read the buttons
   inputData.button1 = digitalRead(BUTTON1);
   inputData.button2 = digitalRead(BUTTON2);
@@ -142,10 +148,16 @@ void readInputs(InputDataStruct &inputData)
   inputData.x -= xOffset;
   inputData.y -= yOffset;
   inputData.z -= zOffset;
-  if (inputData.button1 == LOW)
-    stateDataLoop.gripping = true;
-  else if (inputData.button2 == LOW)
-    stateDataLoop.gripping = false;
+
+  // Check for calibration request (both buttons pressed)
+  checkAndHandleMagneticCalibration(inputData);
+  // Only handle button2 for stopping gripping
+  if (!stateDataLoop.isCalibrating && !stateDataLoop.calibrationNeeded)
+  {
+    // Button1 now initiates calibration in checkAndHandleMagneticCalibration
+    if (inputData.button2 == LOW)
+      stateDataLoop.gripping = false;
+  }
 
   tle5012Sensor.update();
   inputData.tleSensor = tle5012Sensor.getSensorAngle();
@@ -159,6 +171,15 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
   // Previous gripping state to detect changes
   bool wasGripping = stateDataLoop.gripping;
 
+  // Skip normal control logic during calibration
+  if (stateDataLoop.isCalibrating || stateDataLoop.calibrationNeeded)
+  {
+    // Force motor to stop during calibration
+    stateDataLoop.target_voltage = 0;
+    outputDataLoop.target_voltage = 0;
+    return;
+  }
+
   if (inputData.button2 == LOW)
   {
     stateDataLoop.target_voltage = 1;
@@ -166,11 +187,7 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
   }
   else
     stateDataLoop.target_voltage = 0;
-
-  if (inputData.button1 == LOW)
-  {
-    stateDataLoop.gripping = true;
-  }
+  // Button1 now initiates calibration in checkAndHandleMagneticCalibration
 
   // If gripping state changed, reset adaptive grip state
   if (wasGripping != stateDataLoop.gripping)
@@ -190,7 +207,7 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
     findingStablePosition();
 
   if (stateDataLoop.zeroing)
-    zeriongFunc();
+    zeroingFunction();
   if (stateDataLoop.absoluteAngle > MAX_ANGLE && stateDataLoop.target_voltage > 0)
   {
     stateDataLoop.target_voltage = 0;
@@ -205,24 +222,63 @@ void outputResults(OutputDataStruct &outputData)
 }
 void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData)
 {
-  // print in json
-  // Serial.print("{\"x\":");
-  // Serial.print(stateDataLoop.x_filtered);
-  // Serial.print(",\"y\":");
-  // Serial.print(stateDataLoop.y_filtered);
-  // Serial.print(",\"z\":");
-  // Serial.print(stateDataLoop.z_filtered);
-  // Serial.print(",\"angle\":");
-  // Serial.print(stateDataLoop.absoluteAngle);
-  // Serial.print(",\"targetVoltage\":");
-  // Serial.print(outputData.target_voltage);
-  // Serial.print(",\"objectDetected\":");
-  // Serial.print(stateDataLoop.objectDetected ? "true" : "false");
-  // Serial.print(",\"isHardObject\":");
-  // Serial.print(stateDataLoop.isHardObject ? "true" : "false");
-  // Serial.print(",\"gripping\":");
-  // Serial.print(stateDataLoop.gripping ? "true" : "false");
-  // Serial.println("}");
+  // Only send detailed status data periodically to avoid flooding serial port
+  static unsigned long lastDetailedStatus = 0;
+  unsigned long currentTime = millis();
+
+  // Always send calibration status changes
+  static bool lastCalibrationState = false;
+  bool currentCalibrationState = stateDataLoop.isCalibrating || stateDataLoop.calibrationNeeded;
+
+  if (currentCalibrationState != lastCalibrationState)
+  {
+    if (currentCalibrationState)
+    {
+      Serial.println("STATUS: Magnetic sensor calibration in progress");
+    }
+    else if (lastCalibrationState)
+    {
+      Serial.println("STATUS: Magnetic sensor calibration complete");
+
+      // Print the new calibration values
+      Serial.print("New calibration values - X: ");
+      Serial.print(xOffset);
+      Serial.print(", Y: ");
+      Serial.print(yOffset);
+      Serial.print(", Z: ");
+      Serial.println(zOffset);
+    }
+    lastCalibrationState = currentCalibrationState;
+  }
+
+  // Send detailed status every 1000ms
+  if (currentTime - lastDetailedStatus >= 1000)
+  {
+    // Uncomment this for detailed JSON status
+    /*
+    Serial.print("{\"x\":");
+    Serial.print(stateDataLoop.x_filtered);
+    Serial.print(",\"y\":");
+    Serial.print(stateDataLoop.y_filtered);
+    Serial.print(",\"z\":");
+    Serial.print(stateDataLoop.z_filtered);
+    Serial.print(",\"angle\":");
+    Serial.print(stateDataLoop.absoluteAngle);
+    Serial.print(",\"targetVoltage\":");
+    Serial.print(outputData.target_voltage);
+    Serial.print(",\"objectDetected\":");
+    Serial.print(stateDataLoop.objectDetected ? "true" : "false");
+    Serial.print(",\"isHardObject\":");
+    Serial.print(stateDataLoop.isHardObject ? "true" : "false");
+    Serial.print(",\"gripping\":");
+    Serial.print(stateDataLoop.gripping ? "true" : "false");
+    Serial.print(",\"calibrating\":");
+    Serial.print(currentCalibrationState ? "true" : "false");
+    Serial.println("}");
+    */
+
+    lastDetailedStatus = currentTime;
+  }
 }
 
 void discretePID()
@@ -294,7 +350,7 @@ void initDiscretePID()
     float y_old;*/
 }
 
-void zeriongFunc()
+void zeroingFunction()
 {
   unsigned long now = millis();
   float currentAngle = inputDataLoop.tleSensor * (57.295779513); // convert to degrees
@@ -376,7 +432,7 @@ void findingStablePosition()
   float currentAngle = stateDataLoop.absoluteAngle;
 
   // First, detect if an object is present using magnetic field data
-  if (abs(stateDataLoop.x_filtered) > 0.08)
+  if (abs(stateDataLoop.x_filtered) > 0.05)
   {
     // Object detected
     if (!stateDataLoop.objectDetected)
@@ -392,59 +448,87 @@ void findingStablePosition()
     // Apply adaptive grip force based on object hardness
     stateDataLoop.target_voltage = stateDataLoop.isHardObject ? stateDataLoop.hardObjectForce : stateDataLoop.softObjectForce;
 
-    // Check for motor stall (hard object detection)
     if (currentTime - stateDataLoop.stallCheckLastTime >= 100)
     { // Check every 100ms
-      // Calculate angle change rate (degrees per second)
+      // Calculate the magnetic field magnitude
+      float magneticMagnitude = calculateMagneticMagnitude();
+
+      // Calculate angle change rate in degrees per second
+      float dt = (currentTime - stateDataLoop.stallCheckLastTime) / 1000.0; // Time in seconds
       float angleChange = abs(currentAngle - stateDataLoop.stallCheckLastAngle);
-      float timeChange = (currentTime - stateDataLoop.stallCheckLastTime) / 1000.0;
-      float angleRate = timeChange > 0 ? angleChange / timeChange : 0;
+      float angleRate = (dt > 0) ? angleChange / dt : 0;
 
-      // Update timestamp and angle for next check
-      stateDataLoop.stallCheckLastTime = currentTime;
+      // Save current angle and time for next calculation
       stateDataLoop.stallCheckLastAngle = currentAngle;
+      stateDataLoop.stallCheckLastTime = currentTime;
 
-      // Stall detection logic
-      Serial.println("Angle rate: ");
-      Serial.println(angleRate);
-      if (angleRate < stateDataLoop.stallDetectionThreshold && stateDataLoop.target_voltage != 0)
+      // Store angle change rate for reference
+      stateDataLoop.angleChangeRate = angleRate;
+
+      // Debug output
+      Serial.print("Angle rate: ");
+      Serial.print(angleRate);
+      Serial.print(" deg/s, Magnetic magnitude: ");
+      Serial.println(magneticMagnitude);
+
+      // Combined detection logic using both magnetic magnitude and angle change rate
+      bool isMovingSignificantly = angleRate > stateDataLoop.minAngleChangeRate;
+      bool hasMagneticSignal = magneticMagnitude > stateDataLoop.magneticMagnitudeHardThreshold;
+
+      if (hasMagneticSignal && !isMovingSignificantly)
       {
-        // Possible stall detected
+        // High magnetic signal but not moving significantly - likely a hard object
         if (stateDataLoop.stallDetectionTime == 0)
         {
-          // First time detecting potential stall
+          // First time detecting potential hard object
           stateDataLoop.stallDetectionTime = currentTime;
         }
         else if (currentTime - stateDataLoop.stallDetectionTime >= stateDataLoop.stallConfirmationTime)
         {
-          // Stall confirmed after confirmation period
+          // Hard object confirmed after confirmation period
           if (!stateDataLoop.isHardObject)
           {
             stateDataLoop.isHardObject = true;
-            Serial.println("Hard object detected, reducing grip force");
+            Serial.print("Hard object detected (magnitude: ");
+            Serial.print(magneticMagnitude);
+            Serial.print(", angle rate: ");
+            Serial.print(angleRate);
+            Serial.println(" deg/s), increasing grip force");
             // Immediately adjust grip force for hard object
             stateDataLoop.target_voltage = stateDataLoop.hardObjectForce;
           }
         }
       }
-      else
+      else if (isMovingSignificantly && hasMagneticSignal)
       {
-        // No stall detected, reset stall detection timer
+        // If we're still moving significantly even with magnetic signal, it's probably elastic/soft
         stateDataLoop.stallDetectionTime = 0;
 
-        if (stateDataLoop.isHardObject && angleRate > stateDataLoop.stallDetectionThreshold * 2)
+        if (stateDataLoop.isHardObject)
         {
-          // If we previously detected a hard object but now we see movement
-          // it might be a soft object after all
+          // If previously detected as hard but now showing elasticity
           stateDataLoop.isHardObject = false;
-          Serial.println("Soft object detected, applying normal grip force");
+          Serial.print("Elastic object detected (moving at: ");
+          Serial.print(angleRate);
+          Serial.println(" deg/s), applying softer grip force");
+          stateDataLoop.target_voltage = stateDataLoop.softObjectForce;
         }
       }
+      else
+      {
+        // Reset stall detection if conditions not met
+        stateDataLoop.stallDetectionTime = 0;
+      }
+
+      // Save the last magnitude for comparison
+      stateDataLoop.lastMagneticMagnitude = magneticMagnitude;
 
       // Debug output
-      Serial.print("Angle rate: ");
+      Serial.print("Status: Angle rate: ");
       Serial.print(angleRate);
-      Serial.print(" deg/s, Hard object: ");
+      Serial.print(" deg/s, Magnetic: ");
+      Serial.print(magneticMagnitude);
+      Serial.print(", Hard object: ");
       Serial.println(stateDataLoop.isHardObject ? "Yes" : "No");
     }
   }
@@ -467,14 +551,31 @@ void resetAdaptiveGripState()
   stateDataLoop.stallCheckLastAngle = stateDataLoop.absoluteAngle;
 }
 
+/**
+ * @brief Calculates the magnitude of the magnetic field vector using the filtered x, y, and z components
+ * @return The magnitude of the magnetic field vector
+ */
+float calculateMagneticMagnitude()
+{
+  // Calculate magnitude using the Euclidean norm formula: sqrt(x² + y² + z²)
+  return sqrt(
+      (stateDataLoop.x_filtered * stateDataLoop.x_filtered) +
+      (stateDataLoop.y_filtered * stateDataLoop.y_filtered) +
+      (stateDataLoop.z_filtered * stateDataLoop.z_filtered));
+}
+
 void initAdaptiveGripping()
 {
-  // force is negative for gripping
-  stateDataLoop.adaptiveGripForce = -1;
-  stateDataLoop.hardObjectForce = -3;
-  stateDataLoop.softObjectForce = -0.1;
-  stateDataLoop.stallDetectionThreshold = 0.5; // degrees - minimum angle change expected
-  stateDataLoop.stallConfirmationTime = 300;
+  // force is negative for gripping (larger absolute value means more force)
+  stateDataLoop.adaptiveGripForce = -1.5;             // Default grip force
+  stateDataLoop.hardObjectForce = -3.5;               // Higher force for hard/heavy objects
+  stateDataLoop.softObjectForce = -1;                 // Lower force for soft/deformable objects
+  stateDataLoop.stallDetectionThreshold = 1.0;        // degrees - minimum angle change expected
+  stateDataLoop.stallConfirmationTime = 50;           // Time to confirm object hardness (ms)
+  stateDataLoop.magneticMagnitudeHardThreshold = 0.1; // Threshold for hard object detection (adjust as needed)
+  stateDataLoop.minAngleChangeRate = 0.5;             // Minimum angle change rate for elastic objects (degrees/100ms)
+  stateDataLoop.lastMagneticMagnitude = 0.0;
+  stateDataLoop.angleChangeRate = 0.0;
   resetAdaptiveGripState();
 }
 
@@ -546,6 +647,106 @@ void loop()
   executeLogic(inputDataLoop, outputDataLoop);
   outputResults(outputDataLoop);
   serialComunication(inputDataLoop, outputDataLoop);
+}
+
+/**
+ * @brief Check if grip button is pressed and handle magnetic calibration.
+ */
+void checkAndHandleMagneticCalibration(InputDataStruct &inputData)
+{
+  unsigned long currentTime = millis();
+
+  // Check if grip button is pressed
+  if (inputData.button1 == LOW)
+  {
+    // button 1 pressed, trigger calibration
+    if (!stateDataLoop.isCalibrating && !stateDataLoop.calibrationNeeded)
+    {
+      stateDataLoop.calibrationNeeded = true;
+      Serial.println("Magnetic sensor calibration initiated!");
+    }
+  }
+
+  // Handle calibration process
+  if (stateDataLoop.calibrationNeeded)
+  {
+    if (!stateDataLoop.isCalibrating)
+    {
+      // Start calibration
+      stateDataLoop.isCalibrating = true;
+      stateDataLoop.calibrationStartTime = currentTime;
+
+      // Stop motor during calibration
+      stateDataLoop.target_voltage = 0;
+
+      // Perform the actual calibration
+      Serial.println("Starting magnetic sensor recalibration...");
+      recalibrateMagneticSensor();
+
+      Serial.println("Magnetic sensor recalibration complete!");
+    }
+    else
+    { // Calibration cooldown period to allow sensor readings to stabilize
+      if (currentTime - stateDataLoop.calibrationStartTime >= stateDataLoop.calibrationDuration)
+      {
+        stateDataLoop.isCalibrating = false;
+        stateDataLoop.calibrationNeeded = false;
+        // Automatically start gripping after calibration completes
+        stateDataLoop.gripping = true;
+        Serial.println("Calibration process complete. Starting gripping automatically.");
+      }
+    }
+  }
+}
+
+/**
+ * @brief Recalibrates the magnetic field sensor by recalculating offsets.
+ * This function should be called when the magnetic sensor needs to be
+ * recalibrated due to deformation or environmental changes.
+ */
+void recalibrateMagneticSensor()
+{
+  double sumX = 0, sumY = 0, sumZ = 0;
+
+  // Visual indication that calibration is happening
+  Serial.println("Hold gripper still for calibration");
+
+  // Temporarily halt all motion
+  motor.move(0);
+
+  for (int i = 0; i < CALIBRATION_SAMPLES; ++i)
+  {
+    double temp;
+    double valX, valY, valZ;
+
+    dut.getMagneticFieldAndTemperature(&valX, &valY, &valZ, &temp);
+    sumX += valX;
+    sumY += valY;
+    sumZ += valZ;
+
+    // Flash LED or some other visual feedback
+    if (i % 5 == 0)
+    {
+      Serial.print(".");
+    }
+
+    delay(10); // Time between samples
+  }
+
+  Serial.println("");
+
+  // Calculate and apply new offsets
+  xOffset = sumX / CALIBRATION_SAMPLES;
+  yOffset = sumY / CALIBRATION_SAMPLES;
+  zOffset = sumZ / CALIBRATION_SAMPLES;
+
+  // Print new calibration values
+  Serial.print("New calibration values - X: ");
+  Serial.print(xOffset);
+  Serial.print(", Y: ");
+  Serial.print(yOffset);
+  Serial.print(", Z: ");
+  Serial.println(zOffset);
 }
 
 #if ENABLE_MAGNETIC_SENSOR
