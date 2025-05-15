@@ -45,6 +45,18 @@ struct stateStruct
   unsigned long zeroLastTime = 0;
   float zeroLastAngle = 0;
   unsigned long zeroStableStart = 0;
+
+  // Adaptive gripping variables
+  bool objectDetected = false;
+  bool isHardObject = false;
+  float stallDetectionThreshold = 0.5; // degrees - minimum angle change expected
+  unsigned long stallCheckLastTime = 0;
+  float stallCheckLastAngle = 0;
+  unsigned long stallDetectionTime = 0;      // Time when stall was first detected
+  unsigned long stallConfirmationTime = 300; // Time in ms to confirm stall
+  float adaptiveGripForce = -1;              // Default grip force
+  float hardObjectForce = -3;                // Reduced force for hard objects
+  float softObjectForce = -0.1;              // Full force for soft objects
 };
 struct PIDStruct
 {
@@ -143,6 +155,10 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
   filterMagneticData();
   discretePID();
   gripperPositionTracking();
+
+  // Previous gripping state to detect changes
+  bool wasGripping = stateDataLoop.gripping;
+
   if (inputData.button2 == LOW)
   {
     stateDataLoop.target_voltage = 1;
@@ -150,10 +166,26 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
   }
   else
     stateDataLoop.target_voltage = 0;
+
   if (inputData.button1 == LOW)
   {
     stateDataLoop.gripping = true;
   }
+
+  // If gripping state changed, reset adaptive grip state
+  if (wasGripping != stateDataLoop.gripping)
+  {
+    resetAdaptiveGripState();
+    if (stateDataLoop.gripping)
+    {
+      Serial.println("Starting adaptive gripping procedure");
+    }
+    else
+    {
+      Serial.println("Stopping gripping procedure");
+    }
+  }
+
   if (stateDataLoop.gripping)
     findingStablePosition();
 
@@ -173,20 +205,24 @@ void outputResults(OutputDataStruct &outputData)
 }
 void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData)
 {
-
   // print in json
-
-  Serial.print("{\"x\":");
-  Serial.print(stateDataLoop.x_filtered);
-  Serial.print(",\"y\":");
-  Serial.print(stateDataLoop.y_filtered);
-  Serial.print(",\"z\":");
-  Serial.print(stateDataLoop.z_filtered);
-  Serial.print(",\"angle\":");
-  Serial.print(stateDataLoop.absoluteAngle);
-  Serial.print(",\"targetVoltage\":");
-  Serial.print(outputData.target_voltage);
-  Serial.println("}");
+  // Serial.print("{\"x\":");
+  // Serial.print(stateDataLoop.x_filtered);
+  // Serial.print(",\"y\":");
+  // Serial.print(stateDataLoop.y_filtered);
+  // Serial.print(",\"z\":");
+  // Serial.print(stateDataLoop.z_filtered);
+  // Serial.print(",\"angle\":");
+  // Serial.print(stateDataLoop.absoluteAngle);
+  // Serial.print(",\"targetVoltage\":");
+  // Serial.print(outputData.target_voltage);
+  // Serial.print(",\"objectDetected\":");
+  // Serial.print(stateDataLoop.objectDetected ? "true" : "false");
+  // Serial.print(",\"isHardObject\":");
+  // Serial.print(stateDataLoop.isHardObject ? "true" : "false");
+  // Serial.print(",\"gripping\":");
+  // Serial.print(stateDataLoop.gripping ? "true" : "false");
+  // Serial.println("}");
 }
 
 void discretePID()
@@ -336,21 +372,112 @@ void filterMagneticData()
 
 void findingStablePosition()
 {
-  // Implement the logic to find the stable position of the gripper
-  // This function can be called when the gripper is not gripping
-  // and you want to find a stable position based on the magnetic field data.
-  // You can use the filtered magnetic data (x_filtered, y_filtered, z_filtered)
-  // to determine the stable position.
+  unsigned long currentTime = millis();
+  float currentAngle = stateDataLoop.absoluteAngle;
+
+  // First, detect if an object is present using magnetic field data
   if (abs(stateDataLoop.x_filtered) > 0.08)
   {
-    stateDataLoop.target_voltage = 0;
+    // Object detected
+    if (!stateDataLoop.objectDetected)
+    {
+      // First detection of object
+      stateDataLoop.objectDetected = true;
+      stateDataLoop.stallCheckLastTime = currentTime;
+      stateDataLoop.stallCheckLastAngle = currentAngle;
+      stateDataLoop.stallDetectionTime = 0;
+      Serial.println("Object detected, starting adaptive grip");
+    }
+
+    // Apply adaptive grip force based on object hardness
+    stateDataLoop.target_voltage = stateDataLoop.isHardObject ? stateDataLoop.hardObjectForce : stateDataLoop.softObjectForce;
+
+    // Check for motor stall (hard object detection)
+    if (currentTime - stateDataLoop.stallCheckLastTime >= 100)
+    { // Check every 100ms
+      // Calculate angle change rate (degrees per second)
+      float angleChange = abs(currentAngle - stateDataLoop.stallCheckLastAngle);
+      float timeChange = (currentTime - stateDataLoop.stallCheckLastTime) / 1000.0;
+      float angleRate = timeChange > 0 ? angleChange / timeChange : 0;
+
+      // Update timestamp and angle for next check
+      stateDataLoop.stallCheckLastTime = currentTime;
+      stateDataLoop.stallCheckLastAngle = currentAngle;
+
+      // Stall detection logic
+      Serial.println("Angle rate: ");
+      Serial.println(angleRate);
+      if (angleRate < stateDataLoop.stallDetectionThreshold && stateDataLoop.target_voltage != 0)
+      {
+        // Possible stall detected
+        if (stateDataLoop.stallDetectionTime == 0)
+        {
+          // First time detecting potential stall
+          stateDataLoop.stallDetectionTime = currentTime;
+        }
+        else if (currentTime - stateDataLoop.stallDetectionTime >= stateDataLoop.stallConfirmationTime)
+        {
+          // Stall confirmed after confirmation period
+          if (!stateDataLoop.isHardObject)
+          {
+            stateDataLoop.isHardObject = true;
+            Serial.println("Hard object detected, reducing grip force");
+            // Immediately adjust grip force for hard object
+            stateDataLoop.target_voltage = stateDataLoop.hardObjectForce;
+          }
+        }
+      }
+      else
+      {
+        // No stall detected, reset stall detection timer
+        stateDataLoop.stallDetectionTime = 0;
+
+        if (stateDataLoop.isHardObject && angleRate > stateDataLoop.stallDetectionThreshold * 2)
+        {
+          // If we previously detected a hard object but now we see movement
+          // it might be a soft object after all
+          stateDataLoop.isHardObject = false;
+          Serial.println("Soft object detected, applying normal grip force");
+        }
+      }
+
+      // Debug output
+      Serial.print("Angle rate: ");
+      Serial.print(angleRate);
+      Serial.print(" deg/s, Hard object: ");
+      Serial.println(stateDataLoop.isHardObject ? "Yes" : "No");
+    }
   }
   else
   {
-
-    stateDataLoop.target_voltage = -5;
+    // No object detected, close gripper at normal speed
+    stateDataLoop.target_voltage = stateDataLoop.adaptiveGripForce;
+    stateDataLoop.objectDetected = false;
+    stateDataLoop.isHardObject = false;
+    stateDataLoop.stallDetectionTime = 0;
   }
 }
+
+void resetAdaptiveGripState()
+{
+  stateDataLoop.objectDetected = false;
+  stateDataLoop.isHardObject = false;
+  stateDataLoop.stallDetectionTime = 0;
+  stateDataLoop.stallCheckLastTime = millis();
+  stateDataLoop.stallCheckLastAngle = stateDataLoop.absoluteAngle;
+}
+
+void initAdaptiveGripping()
+{
+  // force is negative for gripping
+  stateDataLoop.adaptiveGripForce = -1;
+  stateDataLoop.hardObjectForce = -3;
+  stateDataLoop.softObjectForce = -0.1;
+  stateDataLoop.stallDetectionThreshold = 0.5; // degrees - minimum angle change expected
+  stateDataLoop.stallConfirmationTime = 300;
+  resetAdaptiveGripState();
+}
+
 void setup()
 {
   // use monitoring with serial
@@ -401,6 +528,7 @@ void setup()
   Serial.println("3D magnetic sensor Calibration completed.");
 
   initDiscretePID();
+  initAdaptiveGripping();
 
   // set the pin modes for buttons
   pinMode(BUTTON1, INPUT);
