@@ -1,7 +1,10 @@
 #include "TLE5012Sensor.h"
 #include "TLx493D_inc.hpp"
-#include "config.h"
 #include <SimpleFOC.h>
+
+
+// Enable or disable commander functionality, please check: https://docs.simplefoc.com/commander_interface
+
 
 #define MAX_ANGLE 1000
 #define PID_Setpoint 0.9;
@@ -129,7 +132,6 @@ BLDCDriver3PWM driver = BLDCDriver3PWM(U, V, W, EN_U, EN_V, EN_W);
 // voltage set point variable
 float target_voltage = -1;
 
-#if ENABLE_MAGNETIC_SENSOR
 // create a instance of 3D magnetic sensor
 using namespace ifx::tlx493d;
 TLx493D_A2B6 dut(Wire1, TLx493D_IIC_ADDR_A0_e);
@@ -137,7 +139,6 @@ TLx493D_A2B6 dut(Wire1, TLx493D_IIC_ADDR_A0_e);
 const int CALIBRATION_SAMPLES = 20;
 // offsets for calibration
 double xOffset = 0, yOffset = 0, zOffset = 0;
-#endif
 
 
 void readInputs(InputDataStruct &inputData) {
@@ -596,7 +597,6 @@ void loop() {
 
 }
 
-#if ENABLE_MAGNETIC_SENSOR
 /**
  * @brief Calibrates the magnetic field sensor by calculating the average
  * offsets for the X, Y, and Z axes over a series of samples.
@@ -621,4 +621,3 @@ void calibrateSensor() {
   yOffset = sumY / CALIBRATION_SAMPLES;
   zOffset = sumZ / CALIBRATION_SAMPLES;
 }
-#endif
