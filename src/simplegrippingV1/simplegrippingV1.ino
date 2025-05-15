@@ -4,7 +4,7 @@
 #include <SimpleFOC.h>
 
 #define MAX_ANGLE 1000
-#define PID_Setpoint 0.2
+#define PID_Setpoint 2;
 struct InputDataStruct{
  double x, y, z;
  float tleSensor;
@@ -83,7 +83,7 @@ FuzzyTunerStruct fuzzyTuner = {
     .prevError = 0.0,
     .prevTime = 0.0,
     .k_min = 0.5,
-    .k_max = 10.0
+    .k_max = 20.0
 };
 
 // Define constants for fuzzy tuning regions with more crossover
@@ -185,7 +185,7 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
       zeriongFunc();
   else
   {
-    stateDataLoop.target_voltage=PIDDataLoop.u;
+    stateDataLoop.target_voltage=-PIDDataLoop.u; //besause - is positive
   }
   if (stateDataLoop.absoluteAngle> MAX_ANGLE  && stateDataLoop.target_voltage>0)
   {
@@ -222,7 +222,7 @@ void discretePID()
   // to perform the PID control calculations
   // and update the motor's target voltage accordingly.
   // You can use the inputData and outputData structures
-  PIDDataLoop.y=stateDataLoop.x_filtered;
+  PIDDataLoop.y=calculateMagnitude(stateDataLoop.x_filtered, stateDataLoop.y_filtered, stateDataLoop.z_filtered);
   PIDDataLoop.T_passed=millis();
   PIDDataLoop.T=(PIDDataLoop.T_passed-PIDDataLoop.T_old)/1000.0;
   PIDDataLoop.T_old=PIDDataLoop.T_passed;
@@ -232,8 +232,7 @@ void discretePID()
   float ad=PIDDataLoop.Td/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
   float bd=(PIDDataLoop.k*PIDDataLoop.Td*PIDDataLoop.N)/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
 
-  PIDDataLoop.y=inputDataLoop.targetVoltage;
-  PIDDataLoop.r=inputDataLoop.x;
+
   PIDDataLoop.P=PIDDataLoop.k*(PIDDataLoop.b*PIDDataLoop.r-PIDDataLoop.y);
   PIDDataLoop.D=ad*PIDDataLoop.D-bd*(PIDDataLoop.y-PIDDataLoop.y_old);
   
@@ -266,7 +265,7 @@ void initDiscretePID()
   PIDDataLoop.umin=-5;
   PIDDataLoop.y_old=0;
   PIDDataLoop.y=0;
-  PIDDataLoop.r=0;
+  PIDDataLoop.r=PID_Setpoint;
   PIDDataLoop.T_old=millis()/1000.0;
 
   /*
@@ -562,7 +561,7 @@ void loop() {
     readInputs(inputDataLoop);
     executeLogic(inputDataLoop,outputDataLoop);
     outputResults(outputDataLoop);
-    serialComunication(inputDataLoop,outputDataLoop);
+    //serialComunication(inputDataLoop,outputDataLoop);
   
 
 }
