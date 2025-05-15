@@ -4,6 +4,7 @@
 #include "config.h"
 #include <SimpleFOC.h>
 
+#define MAX_ANGLE 1000
 struct InputDataStruct{
  double x, y, z;
  float tleSensor;
@@ -149,7 +150,12 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
    
   if (stateDataLoop.zeroing)
       zeriongFunc();
+  if (stateDataLoop.absoluteAngle> MAX_ANGLE  && stateDataLoop.target_voltage>0)
+  {
+    stateDataLoop.target_voltage=0;
+  }
   outputDataLoop.target_voltage=stateDataLoop.target_voltage;
+
 }
 void outputResults(OutputDataStruct &outputData){
 
