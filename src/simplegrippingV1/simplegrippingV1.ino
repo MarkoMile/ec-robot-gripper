@@ -1,4 +1,3 @@
-
 #include "TLE5012Sensor.h"
 #include "TLx493D_inc.hpp"
 #include "config.h"
@@ -24,10 +23,12 @@ struct stateStruct{
     float position;
     float velocity;
     float rawAngle;
+    
     float oldRawAngle=0;
     bool gripping;
     float v;
     float absoluteAngle;
+    float oldAbsoluteAngle=-1234;
     float currentRawAngle;
     float totalDegreesTraveled;
     float degreeOffset;
@@ -37,6 +38,10 @@ struct stateStruct{
     float z_filtered=0;
     float magneticAlphaFilter=0.02;
     int numberOfRevolutions=0;
+    // zeroing tracking variables
+    unsigned long zeroLastTime = 0;
+    float zeroLastAngle = 0;
+    unsigned long zeroStableStart = 0;
     
 };
 struct PIDStruct{
@@ -191,7 +196,7 @@ void discretePID()
   // and update the motor's target voltage accordingly.
   // You can use the inputData and outputData structures
   PIDDataLoop.T_passed=millis();
-  PIDDataLoop.T=PIDDataLoop.T_passed-PIDDataLoop.T_old;
+  PIDDataLoop.T=(PIDDataLoop.T_passed-PIDDataLoop.T_old)/1000.0;
   PIDDataLoop.T_old=PIDDataLoop.T_passed;
 
   float bi=(PIDDataLoop.k*PIDDataLoop.T)/PIDDataLoop.Ti;
@@ -234,7 +239,7 @@ void initDiscretePID()
   PIDDataLoop.y_old=0;
   PIDDataLoop.y=0;
   PIDDataLoop.r=0;
-  PIDDataLoop.T_old=millis();
+  PIDDataLoop.T_old=millis()/1000.0;
 
   /*
       float k;
@@ -255,24 +260,40 @@ void initDiscretePID()
 }
 
 void zeriongFunc() {
-  // Initialize total path traveled (sum of absolute movements).
-  if (abs(stateDataLoop.x_filtered)<0.1)
-  {
-    
-    stateDataLoop.target_voltage=-1;
-    Serial.println("zeroing in progress");
-    Serial.println(stateDataLoop.x_filtered);
-  }
-  else 
-  {
-    stateDataLoop.target_voltage=0;
-    Serial.println("zeroing done");
-    stateDataLoop.zeroing=false;
-    stateDataLoop.degreeOffset= inputDataLoop.tleSensor * (57.295779513); // convert to degrees
-    stateDataLoop.numberOfRevolutions=0;
-
-    Serial.println(stateDataLoop.degreeOffset);
-  }
+    unsigned long now = millis();
+    float currentAngle = inputDataLoop.tleSensor * (57.295779513); // convert to degrees
+    float dt = (stateDataLoop.zeroLastTime == 0) ? 0 : (now - stateDataLoop.zeroLastTime) / 1000.0;
+    stateDataLoop.zeroLastTime = now;
+    float speed = (dt > 0) ? abs(currentAngle - stateDataLoop.zeroLastAngle) / dt : 0;
+    stateDataLoop.zeroLastAngle = currentAngle;
+    const float speedThreshold = 15; // deg/s threshold for stability
+    Serial.println(dt);
+    const unsigned long stableDuration = 1000; // ms required to be stable
+    Serial.print("Speed: ");
+    Serial.println(speed);
+    if (speed > speedThreshold) {
+        // still moving: continue zeroing motion
+        stateDataLoop.target_voltage = -1;
+        stateDataLoop.zeroStableStart = 0;
+        Serial.println("zeroing in progress");
+    } else {
+        // detected low speed: start stable timer
+        if (stateDataLoop.zeroStableStart == 0) {
+            stateDataLoop.zeroStableStart = now;
+        }
+        if (now - stateDataLoop.zeroStableStart >= stableDuration) {
+            // arm is stable: set as zero position
+            stateDataLoop.target_voltage = 0;
+            stateDataLoop.zeroing = false;
+            stateDataLoop.degreeOffset = currentAngle;
+            stateDataLoop.numberOfRevolutions = 0;
+            Serial.println("zeroing done");
+        } else {
+            // waiting to confirm stability
+            stateDataLoop.target_voltage = -1;
+            Serial.println("zeroing stable...");
+        }
+    }
 }
 
 void gripperPositionTracking() {
