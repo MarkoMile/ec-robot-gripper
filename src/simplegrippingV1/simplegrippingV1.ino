@@ -884,7 +884,6 @@ void setup()
   pinMode(BUTTON2, INPUT);
 
   Serial.print("setup done.\n");
-  stateDataLoop.x_speed_time_prev = millis();
 
   _delay(1000);
 }
