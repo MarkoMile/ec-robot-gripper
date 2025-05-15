@@ -1,5 +1,9 @@
 {
     "files.associations": {
-        "complex": "cpp"
+        "complex": "cpp",
+        "chrono": "cpp",
+        "random": "cpp",
+        "limits": "cpp",
+        "semaphore": "cpp"
     }
 }
