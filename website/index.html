@@ -626,46 +626,48 @@
             // --- End of new code ---
         }
 
-        // --- Serial Connection Functions ---
-        connectSerialButton.addEventListener('click', async () => {
-            if (!('serial' in navigator)) {
-                alert('Web Serial API not supported by your browser. Try Chrome or Edge.');
-                return;
+        // --- Serial Connection Functions ---        connectSerialButton.addEventListener('click', async () => {
+        if (!('serial' in navigator)) {
+            alert('Web Serial API not supported by your browser. Try Chrome or Edge.');
+            return;
+        }
+        try {
+            port = await navigator.serial.requestPort();
+            await port.open({ baudRate: 115200 });
+
+            serialStatusDisplay.textContent = 'Connected';
+            connectSerialButton.disabled = true;
+            disconnectSerialButton.disabled = false;
+            setSimulatorControlsEnabled(false);
+
+            // Reset all values to defaults before starting to read serial data
+            resetAllValues();
+
+            // Reset revolution counting on new connection
+            gearRevolutions = 0;
+            updateGearRotation(0); // Reset visual to 0
+            gearRevolutionsOutput.textContent = gearRevolutions;
+
+
+            keepReading = true;
+            lineBuffer = '';
+
+            const textDecoder = new TextDecoderStream();
+            readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+            reader = textDecoder.readable.getReader();
+
+            readLoop();
+        } catch (error) {
+            serialStatusDisplay.textContent = `Error: ${error.message}`;
+            console.error('Failed to connect or open port:', error);
+            if (port && port.readable) {
+                if (reader) reader.cancel().catch(() => { });
+                if (readableStreamClosed) readableStreamClosed.catch(() => { });
+                port.close().catch(() => { });
             }
-            try {
-                port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 115200 });
-
-                serialStatusDisplay.textContent = 'Connected';
-                connectSerialButton.disabled = true;
-                disconnectSerialButton.disabled = false;
-                setSimulatorControlsEnabled(false);
-
-                // Reset revolution counting on new connection
-                gearRevolutions = 0;
-                updateGearRotation(0); // Reset visual to 0
-                gearRevolutionsOutput.textContent = gearRevolutions;
-
-
-                keepReading = true;
-                lineBuffer = '';
-
-                const textDecoder = new TextDecoderStream();
-                readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-                reader = textDecoder.readable.getReader();
-
-                readLoop();
-            } catch (error) {
-                serialStatusDisplay.textContent = `Error: ${error.message}`;
-                console.error('Failed to connect or open port:', error);
-                if (port && port.readable) {
-                    if (reader) reader.cancel().catch(() => { });
-                    if (readableStreamClosed) readableStreamClosed.catch(() => { });
-                    port.close().catch(() => { });
-                }
-                port = null;
-                reader = null;
-            }
+            port = null;
+            reader = null;
+        }
         });
 
         disconnectSerialButton.addEventListener('click', async () => {
@@ -748,14 +750,13 @@
             }
             if (port) {
                 try { await port.close(); } catch (e) { console.warn("Port close on manual cleanup failed:", e); }
-            }
-
-            port = null;
+            } port = null;
             reader = null;
             serialStatusDisplay.textContent = 'Disconnected (connection lost)';
             connectSerialButton.disabled = false;
             disconnectSerialButton.disabled = true;
             setSimulatorControlsEnabled(true);
+            resetAllValues();
             initializeSimulatorDefaults();
         } function processSerialLine(line) {
             try {                // Check if line starts with "{" to filter out log messages
@@ -896,6 +897,43 @@
             // Initialize gear display (static for simulator since no control)
             updateGearRotation(0); // Or last known value if we decide to store it
             gearRevolutionsOutput.textContent = gearRevolutions; // Show current rev count
+        }
+
+        // Reset all values to defaults
+        function resetAllValues() {
+            // Reset all sensor and status values to defaults
+            updateGripperAngleDisplay(0);
+            updateGripStatusDisplay(false);
+            updateObjectTypeDisplay('N/A');
+            updateMotorStatusDisplay('Idle');
+            updateGearRotation(0);
+
+            // Reset magnetic field values
+            if (magXOutput) magXOutput.textContent = '0.000';
+            if (magYOutput) magYOutput.textContent = '0.000';
+            if (magZOutput) magZOutput.textContent = '0.000';
+            magXOutput.className = "";
+            magYOutput.className = "";
+            magZOutput.className = "";
+
+            // Reset target voltage
+            if (targetVoltageOutput) {
+                targetVoltageOutput.textContent = '0.00';
+                targetVoltageOutput.className = "inactive";
+            }
+
+            // Reset all boolean statuses
+            updateBooleanStatus(objectDetectedOutput, false);
+            updateBooleanStatus(grippingOutput, false);
+            updateBooleanStatus(calibratingOutput, false);
+            updateBooleanStatus(isHardObjectOutput, false);
+            updateBooleanStatus(isSoftObjectConfirmedOutput, false);
+
+            // Reset angle change rate and magnetic magnitude
+            if (angleChangeRateOutput) angleChangeRateOutput.textContent = '0.00';
+            angleChangeRateOutput.className = "";
+            if (magneticMagnitudeOutput) magneticMagnitudeOutput.textContent = '0.000';
+            magneticMagnitudeOutput.className = "";
         }
 
         function initializeApp() {
