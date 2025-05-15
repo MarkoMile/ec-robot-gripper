@@ -86,11 +86,11 @@ FuzzyTunerStruct fuzzyTuner = {
     .k_max = 10.0
 };
 
-// Define constants for fuzzy tuning regions
-#define ERROR_SMALL 0.05
-#define ERROR_MEDIUM 0.15
-#define ERROR_CHANGE_SMALL 0.01
-#define ERROR_CHANGE_MEDIUM 0.05
+// Define constants for fuzzy tuning regions with more crossover
+#define ERROR_SMALL 0.07  // Increased from 0.05
+#define ERROR_MEDIUM 0.13 // Decreased from 0.15
+#define ERROR_CHANGE_SMALL 0.015 // Increased from 0.01
+#define ERROR_CHANGE_MEDIUM 0.045 // Decreased from 0.05
 
 //
 InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
