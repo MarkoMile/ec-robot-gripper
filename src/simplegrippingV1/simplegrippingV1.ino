@@ -195,6 +195,8 @@ void discretePID()
   // to perform the PID control calculations
   // and update the motor's target voltage accordingly.
   // You can use the inputData and outputData structures
+  PIDDataLoop.y=stateDataLoop.x_filtered;
+  PIDDataLoop.r=0.1;
   PIDDataLoop.T_passed=millis();
   PIDDataLoop.T=(PIDDataLoop.T_passed-PIDDataLoop.T_old)/1000.0;
   PIDDataLoop.T_old=PIDDataLoop.T_passed;
