@@ -131,7 +131,6 @@ void readInputs(InputDataStruct &inputData) {
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
   filterMagneticData();
-  stateDataLoop.target_voltage=0;//kasnije ovo izmeniti
   discretePID();
   gripperPositionTracking();
   if (inputData.button2==LOW)
@@ -139,6 +138,8 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
     stateDataLoop.target_voltage = 1;
     stateDataLoop.gripping=false;
   } 
+  else
+    stateDataLoop.target_voltage = 0;
   if (inputData.button1==LOW)
   {
     stateDataLoop.gripping=true;
@@ -244,7 +245,7 @@ void initDiscretePID()
 
 void zeriongFunc() {
   // Initialize total path traveled (sum of absolute movements).
-  if (abs(stateDataLoop.x_filtered)<0.07)
+  if (abs(stateDataLoop.x_filtered)<0.02)
   {
     
     stateDataLoop.target_voltage=-1;
@@ -256,7 +257,7 @@ void zeriongFunc() {
     stateDataLoop.target_voltage=0;
     Serial.println("zeroing done");
     stateDataLoop.zeroing=false;
-    stateDataLoop.degreeOffset=inputDataLoop.tleSensor* (57.295779513); // convert to degrees
+    stateDataLoop.degreeOffset= inputDataLoop.tleSensor * (57.295779513); // convert to degrees
     Serial.println(stateDataLoop.degreeOffset);
   }
 }
@@ -276,9 +277,8 @@ void gripperPositionTracking() {
   }
   // 3. Unwrap at ±half‐circle
   
-  stateDataLoop.absoluteAngle = newRaw + stateDataLoop.numberOfRevolutions * 360- stateDataLoop.degreeOffset;  
-
-      stateDataLoop.oldRawAngle=newRaw;
+  stateDataLoop.absoluteAngle = newRaw + (stateDataLoop.numberOfRevolutions * 360) - stateDataLoop.degreeOffset;  
+  stateDataLoop.oldRawAngle=newRaw;
 }
 
 void filterMagneticData() {
@@ -294,13 +294,14 @@ void findingStablePosition() {
   // and you want to find a stable position based on the magnetic field data.
   // You can use the filtered magnetic data (x_filtered, y_filtered, z_filtered)
   // to determine the stable position.
-  if(abs(stateDataLoop.x_filtered)>0.1)
+  if(abs(stateDataLoop.x_filtered)>0.08)
   {
     stateDataLoop.target_voltage=0;
     
   }
   else
   {
+
     stateDataLoop.target_voltage=-5;
     
   }
