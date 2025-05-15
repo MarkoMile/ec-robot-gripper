@@ -18,6 +18,21 @@
             box-sizing: border-box;
         }
 
+        /* Add some styling for active/inactive states */
+        .active {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .inactive {
+            color: #6c757d;
+        }
+
+        .warning {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
         h1 {
             color: #333;
             margin-bottom: 30px;
@@ -261,6 +276,27 @@
             color: #007bff;
         }
 
+        /* Add styles for different status indicators */
+        .status-panel span.active {
+            color: #28a745;
+            /* Green for active status */
+        }
+
+        .status-panel span.inactive {
+            color: #6c757d;
+            /* Gray for inactive status */
+        }
+
+        .status-panel span.warning {
+            color: #ffc107;
+            /* Yellow/amber for warning status */
+        }
+
+        .status-panel span.error {
+            color: #dc3545;
+            /* Red for error status */
+        }
+
         .simulation-controls label {
             display: block;
             margin-bottom: 15px;
@@ -275,6 +311,48 @@
         .simulation-controls input[type="checkbox"] {
             margin-right: 5px;
             vertical-align: middle;
+        }
+
+        .log-panel {
+            background-color: #fff;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        .log-panel h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        #json-log {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+
+        #clear-log-btn {
+            padding: 5px 10px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #clear-log-btn:hover {
+            background-color: #5a6268;
         }
     </style>
 </head>
@@ -314,16 +392,26 @@
                 <p>Gripper Angle (TLE5012B): <span id="angle-output">0</span>°</p>
                 <p>Raw Gear Angle: <span id="raw-gear-angle-output">0</span>°</p>
                 <p>Gear Revolutions: <span id="gear-revolutions-output">0</span></p>
-                <p>Magnetic Sensor (TLx493D - Gripped): <span id="gripped-output">No</span></p>
-                <p>Motor Controller Status: <span id="motor-output">Idle</span></p>
-                <hr>
-                <h2>Object Properties</h2>
+                <p>Magnetic Field X: <span id="mag-x-output">0</span></p>
+                <p>Magnetic Field Y: <span id="mag-y-output">0</span></p>
+                <p>Magnetic Field Z: <span id="mag-z-output">0</span></p>
+                <p>Target Voltage: <span id="target-voltage-output">0</span></p>
+                <p>Motor Status: <span id="motor-output">Idle</span></p>
                 <p>Object Type: <span id="object-type-output">N/A</span></p>
+                <p>Grip Status: <span id="gripped-output">No</span></p>
+                <hr>
+                <h2>Gripper Status</h2>
+                <p>Object Detected: <span id="object-detected-output">No</span></p>
+                <p>Gripping: <span id="gripping-output">No</span></p>
+                <p>Calibrating: <span id="calibrating-output">No</span></p>
+                <p>Is Hard Object: <span id="is-hard-object-output">No</span></p>
+                <p>Soft Object Confirmed: <span id="is-soft-object-confirmed-output">No</span></p>
+                <p>Angle Change Rate: <span id="angle-change-rate-output">0</span>°/s</p>
+                <p>Magnetic Magnitude: <span id="magnetic-magnitude-output">0</span></p>
             </div>
-
             <div class="simulation-controls">
                 <h2>Simulator Controls (Mimics Hardware)</h2>
-                <p><em>Simulation of gear angle not added yet. Values come from serial.</em></p>
+                <p><em>These controls are disabled when serial connection is active.</em></p>
 
                 <label for="sim-angle">Gripper Angle (0° closed, 45° open):
                     <input type="range" id="sim-angle" min="0" max="45" value="0">
@@ -331,7 +419,7 @@
                 </label>
 
                 <label for="sim-gripped">
-                    <input type="checkbox" id="sim-gripped"> Simulate Object Gripped (TLx493D)
+                    <input type="checkbox" id="sim-gripped"> Simulate Object Detection
                 </label>
 
                 <label for="sim-object-type">Simulate Object Type:
@@ -350,6 +438,15 @@
                         <option value="Stalled">Stalled</option>
                     </select>
                 </label>
+
+                <p><strong>Hardware Data Visualization:</strong> When connected via serial, the webpage receives
+                    real-time data from the controller, including magnetic field readings, object detection, and gripper
+                    status.</p>
+            </div>
+            <div class="log-panel">
+                <h2>Debug Log</h2>
+                <button id="clear-log-btn">Clear Log</button>
+                <div id="json-log"></div>
             </div>
         </div>
     </div>
@@ -369,6 +466,18 @@
         const objectTypeOutput = document.getElementById('object-type-output');
         const rawGearAngleOutput = document.getElementById('raw-gear-angle-output');
         const gearRevolutionsOutput = document.getElementById('gear-revolutions-output');
+        // New output displays for the JSON fields
+        const magXOutput = document.getElementById('mag-x-output');
+        const magYOutput = document.getElementById('mag-y-output');
+        const magZOutput = document.getElementById('mag-z-output');
+        const targetVoltageOutput = document.getElementById('target-voltage-output');
+        const objectDetectedOutput = document.getElementById('object-detected-output');
+        const grippingOutput = document.getElementById('gripping-output');
+        const calibratingOutput = document.getElementById('calibrating-output');
+        const isHardObjectOutput = document.getElementById('is-hard-object-output');
+        const isSoftObjectConfirmedOutput = document.getElementById('is-soft-object-confirmed-output');
+        const angleChangeRateOutput = document.getElementById('angle-change-rate-output');
+        const magneticMagnitudeOutput = document.getElementById('magnetic-magnitude-output');
 
 
         // Simulator Controls
@@ -376,12 +485,14 @@
         const simAngleValueDisplay = document.getElementById('sim-angle-value');
         const simGrippedCheckbox = document.getElementById('sim-gripped');
         const simObjectTypeSelect = document.getElementById('sim-object-type');
-        const simMotorStatusSelect = document.getElementById('sim-motor-status');
-
-        // Serial Connection Elements
+        const simMotorStatusSelect = document.getElementById('sim-motor-status');        // Serial Connection Elements
         const connectSerialButton = document.getElementById('connect-serial-btn');
         const disconnectSerialButton = document.getElementById('disconnect-serial-btn');
         const serialStatusDisplay = document.getElementById('serial-status');
+
+        // Logging Elements
+        const jsonLog = document.getElementById('json-log');
+        const clearLogBtn = document.getElementById('clear-log-btn');
 
         // Serial Port Variables
         let port;
@@ -646,38 +757,123 @@
             disconnectSerialButton.disabled = true;
             setSimulatorControlsEnabled(true);
             initializeSimulatorDefaults();
-        }
-
-
-        function processSerialLine(line) {
-            try {
+        } function processSerialLine(line) {
+            try {                // Check if line starts with "{" to filter out log messages
+                if (!line.startsWith('{') || !line.endsWith('}')) {
+                    console.log('Non-JSON message:', line);
+                    // Log non-JSON messages
+                    addToLog(`<span style="color:#6c757d">${line}</span>`, false);
+                    return;
+                }
                 const data = JSON.parse(line);
-                // console.log('Received data:', data);
+                console.log('Received data:', data);
+
+                // Log the parsed JSON data
+                addToLog(data, true);
 
                 // Absolute small gear angle (0-1000 degrees)
                 if (data.angle !== undefined) {
                     const gearAngle = parseFloat(data.angle);
                     // gearAngle is in degrees
                     updateGearRotation(gearAngle);
+                }                // Process magnetic field data
+                if (data.x !== undefined && data.y !== undefined && data.z !== undefined) {
+                    updateMagneticData(data.x, data.y, data.z);
                 }
 
-                // NOTE: gripped value is currently not implemented in the hardware
-                // if (data.gripped !== undefined) {
-                //     const isGripped = Boolean(data.gripped);
-                //     updateGripStatusDisplay(isGripped);
-                //     simGrippedCheckbox.checked = isGripped;
-                // }
+                // Process target voltage
+                if (data.targetVoltage !== undefined) {
+                    updateVoltageStatus(data.targetVoltage);
 
-                // NOTE: Object type is currently not implemented in the hardware
-                // if (data.objectType !== undefined) {
-                //     updateObjectTypeDisplay(data.objectType);
-                //     simObjectTypeSelect.value = data.objectType;
-                // }
+                    // Update motor status based on voltage
+                    if (data.targetVoltage < -0.1) {
+                        updateMotorStatusDisplay("Moving: Closing");
+                    } else if (data.targetVoltage > 0.1) {
+                        updateMotorStatusDisplay("Moving: Opening");
+                    } else {
+                        updateMotorStatusDisplay("Idle");
+                    }
+                }
 
-                // NOTE: Motor status is currently not implemented in the hardware
-                // if (data.motorStatus !== undefined) {
-                //     updateMotorStatusDisplay(data.motorStatus);
-                // }
+                // Process object detection status
+                if (data.objectDetected !== undefined) {
+                    updateBooleanStatus(objectDetectedOutput, data.objectDetected);
+                    // Update grip visual based on object detection
+                    updateGripStatusDisplay(data.objectDetected);
+                }
+
+                // Process gripping status
+                if (data.gripping !== undefined) {
+                    updateBooleanStatus(grippingOutput, data.gripping);
+                }
+
+                // Process calibration status
+                if (data.calibrating !== undefined) {
+                    updateBooleanStatus(calibratingOutput, data.calibrating);
+                }
+                // Process hard object status
+                if (data.isHardObject !== undefined) {
+                    updateBooleanStatus(isHardObjectOutput, data.isHardObject);
+
+                    // Only change object type display if soft confirmed status isn't available
+                    if (data.isSoftObjectConfirmed === undefined) {
+                        const objectType = data.isHardObject ? "rigid" : (data.objectDetected ? "soft" : "N/A");
+                        updateObjectTypeDisplay(objectType);
+                        simObjectTypeSelect.value = objectType;
+                    }
+                }
+
+                // Process soft object confirmation status
+                if (data.isSoftObjectConfirmed !== undefined) {
+                    updateBooleanStatus(isSoftObjectConfirmedOutput, data.isSoftObjectConfirmed);
+
+                    // Override object type based on soft confirmation status
+                    if (data.objectDetected) {
+                        const objectType = data.isSoftObjectConfirmed ? "soft" :
+                            (data.isHardObject ? "rigid" : "N/A");
+                        updateObjectTypeDisplay(objectType);
+                        simObjectTypeSelect.value = objectType;
+                    }
+                }
+
+                // Process angle change rate
+                if (data.angleChangeRate !== undefined) {
+                    angleChangeRateOutput.textContent = data.angleChangeRate.toFixed(2);
+
+                    // Highlight if moving significantly
+                    if (data.angleChangeRate > 0.5) { // Threshold defined in controller
+                        angleChangeRateOutput.className = "active";
+                    } else {
+                        angleChangeRateOutput.className = "";
+                    }
+                }                // Display magnetic magnitude from controller, or calculate it locally as fallback
+                if (data.magneticMagnitude !== undefined) {
+                    // Use the value sent from the controller
+                    magneticMagnitudeOutput.textContent = data.magneticMagnitude.toFixed(3);
+
+                    // Highlight if above threshold
+                    if (data.magneticMagnitude > 0.15) { // Threshold from controller
+                        magneticMagnitudeOutput.className = "active";
+                    } else {
+                        magneticMagnitudeOutput.className = "";
+                    }
+                }
+                // Fallback calculation if controller doesn't send the field
+                else if (data.x !== undefined && data.y !== undefined && data.z !== undefined) {
+                    const magnitude = Math.sqrt(
+                        data.x * data.x +
+                        data.y * data.y +
+                        data.z * data.z
+                    );
+                    magneticMagnitudeOutput.textContent = magnitude.toFixed(3);
+
+                    // Highlight if above threshold
+                    if (magnitude > 0.15) { // Threshold from controller
+                        magneticMagnitudeOutput.className = "active";
+                    } else {
+                        magneticMagnitudeOutput.className = "";
+                    }
+                }
             } catch (error) {
                 console.error('Error parsing JSON from serial or updating UI:', error, 'Line:', line);
             }
@@ -716,6 +912,83 @@
         // Initialize on load
         initializeApp();
 
+        // --- Update Functions for New Status Indicators ---
+        function updateBooleanStatus(element, isActive) {
+            if (element) {
+                element.textContent = isActive ? "Yes" : "No";
+                element.className = isActive ? "active" : "inactive";
+            }
+        }
+
+        function updateMagneticData(x, y, z) {
+            if (magXOutput) magXOutput.textContent = x.toFixed(3);
+            if (magYOutput) magYOutput.textContent = y.toFixed(3);
+            if (magZOutput) magZOutput.textContent = z.toFixed(3);
+
+            // Calculate magnitude for visual indicator
+            const magnitude = Math.sqrt(x * x + y * y + z * z);
+            const threshold = 0.15;
+
+            // Add visual indication based on magnitude
+            if (magnitude > threshold) {
+                magXOutput.className = "active";
+                magYOutput.className = "active";
+                magZOutput.className = "active";
+            } else {
+                magXOutput.className = "";
+                magYOutput.className = "";
+                magZOutput.className = "";
+            }
+        }
+
+        function updateVoltageStatus(voltage) {
+            if (targetVoltageOutput) {
+                targetVoltageOutput.textContent = voltage.toFixed(2);
+
+                if (voltage < -0.5) {
+                    targetVoltageOutput.className = "active"; // Closing grip (negative voltage)
+                } else if (voltage > 0.5) {
+                    targetVoltageOutput.className = "warning"; // Opening grip (positive voltage)
+                } else {
+                    targetVoltageOutput.className = "inactive"; // Idle (around zero)
+                }
+            }
+        }        // Logging functionality
+
+        function addToLog(message, isJson = false) {
+            if (!jsonLog) return;
+
+            const entry = document.createElement('div');
+
+            const timestamp = new Date().toLocaleTimeString();
+
+            if (isJson) {
+                try {
+                    // Format and color-code the JSON
+                    const jsonObj = typeof message === 'string' ? JSON.parse(message) : message;
+                    const formatted = JSON.stringify(jsonObj, null, 2);
+                    entry.innerHTML = `<span style="color:#999">${timestamp}</span> <pre style="color:#0275d8">${formatted}</pre>`;
+                } catch (e) {
+                    entry.innerHTML = `<span style="color:#999">${timestamp}</span> <span style="color:#dc3545">Error parsing JSON: ${e.message}</span>`;
+                }
+            } else {
+                entry.innerHTML = `<span style="color:#999">${timestamp}</span> ${message}`;
+            }
+
+            jsonLog.appendChild(entry);
+
+            // Auto-scroll to bottom
+            jsonLog.scrollTop = jsonLog.scrollHeight;
+
+            // Limit log entries to 100
+            while (jsonLog.children.length > 100) {
+                jsonLog.removeChild(jsonLog.children[0]);
+            }
+        }
+
+        clearLogBtn.addEventListener('click', () => {
+            jsonLog.innerHTML = '';
+        });
     </script>
 </body>
 
