@@ -166,7 +166,7 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     Serial.print(inputData.tleSensor);
     Serial.println();
 */
-Serial.print(filterMagneticData.x_filtered);
+Serial.print(stateDataLoop.x_filtered);
 Serial.print(",");
 Serial.println(outputData.target_voltage==0?0:1);
 }
