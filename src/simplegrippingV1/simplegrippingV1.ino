@@ -582,13 +582,6 @@ void findingStablePosition()
       bool isMovingSignificantly = angleRate > stateDataLoop.minAngleChangeRate;
       bool hasMagneticSignal = magneticMagnitude > stateDataLoop.magneticMagnitudeHardThreshold;
 
-      // Calculate average elasticity over the memory buffer for smoother detection
-      // float avgElasticity = 0;
-      // for (int i = 0; i < 5; i++)
-      // {
-      //   avgElasticity += stateDataLoop.elasticityMemory[i];
-      // }
-      // avgElasticity /= 5; // If it's already confirmed as a soft object, we need strong evidence to change our mind
       if (stateDataLoop.isSoftObjectConfirmed)
       {
         // Only consider changing to hard if magnetic signal is much stronger than threshold
@@ -801,7 +794,7 @@ void initAdaptiveGripping()
   stateDataLoop.softObjectForce = -1;                 // Lower force for soft/deformable objects
   stateDataLoop.stallDetectionThreshold = 0.8;        // degrees - minimum angle change expected (lowered for sensitivity)
   stateDataLoop.stallConfirmationTime = 150;          // Time to confirm object hardness (ms) - increased for stability
-  stateDataLoop.magneticMagnitudeHardThreshold = 0.7; // Threshold for hard object detection using magnitude
+  stateDataLoop.magneticMagnitudeHardThreshold = 0.4; // Threshold for hard object detection using magnitude
   // Note: Initial detection threshold is lower (0.07) to catch all objects
   stateDataLoop.objectDetectionThreshold = 0.08; // magnetic magnitude threshold
   stateDataLoop.minAngleChangeRate = 50;         // Minimum angle change rate for elastic objects (degrees/100ms)

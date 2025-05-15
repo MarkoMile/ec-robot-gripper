@@ -817,7 +817,7 @@
 
                     // Only change object type display if soft confirmed status isn't available
                     if (data.isSoftObjectConfirmed === undefined) {
-                        const objectType = data.isHardObject ? "rigid" : (data.objectDetected ? "soft" : "N/A");
+                        const objectType = data.isHardObject ? "rigid" : "N/A";
                         updateObjectTypeDisplay(objectType);
                         simObjectTypeSelect.value = objectType;
                     }
@@ -827,10 +827,9 @@
                 if (data.isSoftObjectConfirmed !== undefined) {
                     updateBooleanStatus(isSoftObjectConfirmedOutput, data.isSoftObjectConfirmed);
 
-                    // Override object type based on soft confirmation status
-                    if (data.objectDetected) {
-                        const objectType = data.isSoftObjectConfirmed ? "soft" :
-                            (data.isHardObject ? "rigid" : "N/A");
+                    // Only change object type display if hard confirmed status isn't available
+                    if (data.isHardObject === undefined) {
+                        const objectType = data.isSoftObjectConfirmed ? "soft" : "N/A";
                         updateObjectTypeDisplay(objectType);
                         simObjectTypeSelect.value = objectType;
                     }
