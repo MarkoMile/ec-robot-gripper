@@ -292,8 +292,6 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
   if (stateDataLoop.absoluteAngle > MAX_ANGLE && stateDataLoop.target_voltage > 0) {
     stateDataLoop.target_voltage = 0;
   }
-  Serial.print("r: ");
-  Serial.println(PIDDataLoop.r);
   outputDataLoop.target_voltage = stateDataLoop.target_voltage;
 }
 
