@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino PID Setpoint Controller</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .control-panel {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .disconnect-btn {
+            background-color: #f44336;
+        }
+        input {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .data-display {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            min-height: 200px;
+            background-color: #f9f9f9;
+        }
+        .status {
+            color: #4CAF50;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .error {
+            color: #f44336;
+        }
+        .slider-container {
+            margin: 20px 0;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        #setpointSlider {
+            width: 100%;
+        }
+        .connection-status {
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .connected {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .disconnected {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Arduino PID Setpoint Controller</h1>
+        
+        <div class="connection-status disconnected" id="connectionStatus">
+            Disconnected
+        </div>
+        
+        <div class="control-panel">
+            <button id="connectBtn">Connect to Arduino</button>
+            <button id="disconnectBtn" class="disconnect-btn" disabled>Disconnect</button>
+        </div>
+
+        <div class="control-panel">
+            <h2>PID Setpoint Control</h2>
+            <div class="slider-container">
+                <label for="setpointSlider">Setpoint Value: <span id="setpointValue">0.9</span></label>
+                <input type="range" min="0" max="2" step="0.1" value="0.9" id="setpointSlider">
+            </div>
+            <button id="sendSetpointBtn" disabled>Send Setpoint to Arduino</button>
+        </div>
+
+        <div class="data-display">
+            <h3>Data from Arduino:</h3>
+            <pre id="serialData"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const sendSetpointBtn = document.getElementById('sendSetpointBtn');
+        const setpointSlider = document.getElementById('setpointSlider');
+        const setpointValue = document.getElementById('setpointValue');
+        const serialData = document.getElementById('serialData');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        // Variables for serial communication
+        let port;
+        let reader;
+        let writer;
+        let readLoopActive = false;
+
+        // Check if Web Serial is supported
+        if (!('serial' in navigator)) {
+            connectionStatus.textContent = 'Web Serial API not supported in this browser';
+            connectionStatus.classList.add('error');
+            connectBtn.disabled = true;
+        }
+
+        // Update setpoint value display as slider changes
+        setpointSlider.addEventListener('input', () => {
+            setpointValue.textContent = setpointSlider.value;
+        });
+
+        // Connect to Arduino via Serial
+        connectBtn.addEventListener('click', async () => {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 }); // Match Arduino baudRate
+                
+                // Get reader and writer
+                writer = port.writable.getWriter();
+                
+                // Update UI
+                connectionStatus.textContent = 'Connected to Arduino';
+                connectionStatus.classList.remove('disconnected');
+                connectionStatus.classList.add('connected');
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                sendSetpointBtn.disabled = false;
+
+                // Start reading from the serial port
+                startReadLoop();
+                
+            } catch (error) {
+                console.error('Error connecting to serial port:', error);
+                connectionStatus.textContent = 'Failed to connect: ' + error.message;
+                connectionStatus.classList.add('error');
+            }
+        });
+
+        // Disconnect from Arduino
+        disconnectBtn.addEventListener('click', async () => {
+            if (port) {
+                readLoopActive = false;
+                
+                // Close the writer
+                if (writer) {
+                    try {
+                        writer.releaseLock();
+                    } catch (error) {
+                        console.error('Error releasing writer lock:', error);
+                    }
+                }
+                
+                // Close the port
+                try {
+                    await port.close();
+                } catch (error) {
+                    console.error('Error closing port:', error);
+                }
+                
+                // Update UI
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.classList.remove('connected');
+                connectionStatus.classList.add('disconnected');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendSetpointBtn.disabled = true;
+                port = null;
+                writer = null;
+                reader = null;
+            }
+        });
+
+        // Send setpoint to Arduino
+        sendSetpointBtn.addEventListener('click', async () => {
+            if (writer) {
+                try {
+                    // Format command to update PID setpoint r value in PIDStruct
+                    const setpoint = parseFloat(setpointSlider.value);
+                    const command = `PIDSetpoint:${setpoint}\n`;
+                    
+                    // Convert string to Uint8Array
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(command);
+                    
+                    // Send data
+                    await writer.write(data);
+                    
+                    // Update status
+                    serialData.textContent += `Sent: ${command}`;
+                } catch (error) {
+                    console.error('Error sending data:', error);
+                    serialData.textContent += `Error sending data: ${error.message}\n`;
+                }
+            }
+        });
+
+        // Read data from Arduino
+        async function startReadLoop() {
+            readLoopActive = true;
+            
+            // Create a new reader
+            reader = port.readable.getReader();
+            
+            try {
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (readLoopActive && port.readable) {
+                    const { value, done } = await reader.read();
+                    
+                    if (done) {
+                        break;
+                    }
+                    
+                    // Decode the received data
+                    const text = decoder.decode(value);
+                    buffer += text;
+                    
+                    // Process complete lines
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep the incomplete line in the buffer
+                    
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            displayData(line);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error reading from port:', error);
+                serialData.textContent += `Error reading data: ${error.message}\n`;
+            } finally {
+                if (reader) {
+                    try {
+                        reader.releaseLock();
+                    } catch (e) {
+                        console.error('Error releasing reader lock:', e);
+                    }
+                }
+            }
+        }
+
+        // Display received data
+        function displayData(data) {
+            // Limit the number of lines to prevent excessive memory use
+            const maxLines = 50;
+            const currentLines = serialData.textContent.split('\n');
+            
+            if (currentLines.length > maxLines) {
+                currentLines.splice(0, currentLines.length - maxLines);
+            }
+            
+            serialData.textContent = currentLines.join('\n') + '\n' + data;
+            
+            // Auto-scroll to bottom
+            serialData.scrollTop = serialData.scrollHeight;
+        }
+    </script>
+</body>
+</html>
