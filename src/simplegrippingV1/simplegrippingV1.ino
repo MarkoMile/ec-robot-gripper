@@ -263,8 +263,8 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     lastCalibrationState = currentCalibrationState;
   }
 
-  // Send detailed status every 200ms
-  if (currentTime - lastDetailedStatus >= 200)
+  // Send detailed status every 400ms
+  if (currentTime - lastDetailedStatus >= 400)
   {
     // Uncomment this for detailed JSON status
 
