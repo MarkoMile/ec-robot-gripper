@@ -626,48 +626,49 @@
             // --- End of new code ---
         }
 
-        // --- Serial Connection Functions ---        connectSerialButton.addEventListener('click', async () => {
-        if (!('serial' in navigator)) {
-            alert('Web Serial API not supported by your browser. Try Chrome or Edge.');
-            return;
-        }
-        try {
-            port = await navigator.serial.requestPort();
-            await port.open({ baudRate: 115200 });
-
-            serialStatusDisplay.textContent = 'Connected';
-            connectSerialButton.disabled = true;
-            disconnectSerialButton.disabled = false;
-            setSimulatorControlsEnabled(false);
-
-            // Reset all values to defaults before starting to read serial data
-            resetAllValues();
-
-            // Reset revolution counting on new connection
-            gearRevolutions = 0;
-            updateGearRotation(0); // Reset visual to 0
-            gearRevolutionsOutput.textContent = gearRevolutions;
-
-
-            keepReading = true;
-            lineBuffer = '';
-
-            const textDecoder = new TextDecoderStream();
-            readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
-            reader = textDecoder.readable.getReader();
-
-            readLoop();
-        } catch (error) {
-            serialStatusDisplay.textContent = `Error: ${error.message}`;
-            console.error('Failed to connect or open port:', error);
-            if (port && port.readable) {
-                if (reader) reader.cancel().catch(() => { });
-                if (readableStreamClosed) readableStreamClosed.catch(() => { });
-                port.close().catch(() => { });
+        // --- Serial Connection Functions ---
+        connectSerialButton.addEventListener('click', async () => {
+            if (!('serial' in navigator)) {
+                alert('Web Serial API not supported by your browser. Try Chrome or Edge.');
+                return;
             }
-            port = null;
-            reader = null;
-        }
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+
+                serialStatusDisplay.textContent = 'Connected';
+                connectSerialButton.disabled = true;
+                disconnectSerialButton.disabled = false;
+                setSimulatorControlsEnabled(false);
+
+                // Reset all values to defaults before starting to read serial data
+                resetAllValues();
+
+                // Reset revolution counting on new connection
+                gearRevolutions = 0;
+                updateGearRotation(0); // Reset visual to 0
+                gearRevolutionsOutput.textContent = gearRevolutions;
+
+
+                keepReading = true;
+                lineBuffer = '';
+
+                const textDecoder = new TextDecoderStream();
+                readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                reader = textDecoder.readable.getReader();
+
+                readLoop();
+            } catch (error) {
+                serialStatusDisplay.textContent = `Error: ${error.message}`;
+                console.error('Failed to connect or open port:', error);
+                if (port && port.readable) {
+                    if (reader) reader.cancel().catch(() => { });
+                    if (readableStreamClosed) readableStreamClosed.catch(() => { });
+                    port.close().catch(() => { });
+                }
+                port = null;
+                reader = null;
+            }
         });
 
         disconnectSerialButton.addEventListener('click', async () => {
@@ -816,24 +817,18 @@
                 if (data.isHardObject !== undefined) {
                     updateBooleanStatus(isHardObjectOutput, data.isHardObject);
 
-                    // Only change object type display if soft confirmed status isn't available
-                    if (data.isSoftObjectConfirmed === undefined) {
-                        const objectType = data.isHardObject ? "rigid" : "N/A";
-                        updateObjectTypeDisplay(objectType);
-                        simObjectTypeSelect.value = objectType;
-                    }
+                    const objectType = data.isHardObject ? "rigid" : "N/A";
+                    updateObjectTypeDisplay(objectType);
+                    simObjectTypeSelect.value = objectType;
                 }
 
                 // Process soft object confirmation status
                 if (data.isSoftObjectConfirmed !== undefined) {
                     updateBooleanStatus(isSoftObjectConfirmedOutput, data.isSoftObjectConfirmed);
 
-                    // Only change object type display if hard confirmed status isn't available
-                    if (data.isHardObject === undefined) {
-                        const objectType = data.isSoftObjectConfirmed ? "soft" : "N/A";
-                        updateObjectTypeDisplay(objectType);
-                        simObjectTypeSelect.value = objectType;
-                    }
+                    const objectType = data.isSoftObjectConfirmed ? "soft" : "N/A";
+                    updateObjectTypeDisplay(objectType);
+                    simObjectTypeSelect.value = objectType;
                 }
 
                 // Process angle change rate
