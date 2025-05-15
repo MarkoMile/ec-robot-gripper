@@ -4,6 +4,7 @@
 #include <SimpleFOC.h>
 
 #define MAX_ANGLE 1000
+#define PID_Setpoint 0.2
 struct InputDataStruct{
  double x, y, z;
  float tleSensor;
@@ -42,7 +43,9 @@ struct stateStruct{
     unsigned long zeroLastTime = 0;
     float zeroLastAngle = 0;
     unsigned long zeroStableStart = 0;
-    
+    float x_filtered_prev=0.0;
+    float x_speed=0.0;
+    unsigned long x_speed_time_prev;
 };
 struct PIDStruct{
     float k;
@@ -65,6 +68,30 @@ struct PIDStruct{
     float b;
     float u;
 };
+
+struct FuzzyTunerStruct {
+    float setpoint;       // Target magnitude for the magnetic field (R)
+    float prevError;      // Previous error for calculating change
+    float prevTime;       // Previous time for calculating delta time
+    float k_min;          // Minimum value for k
+    float k_max;          // Maximum value for k
+};
+
+// Initialize fuzzy tuner struct
+FuzzyTunerStruct fuzzyTuner = {
+    .setpoint = 0.2,      // Target setpoint magnitude
+    .prevError = 0.0,
+    .prevTime = 0.0,
+    .k_min = 0.5,
+    .k_max = 10.0
+};
+
+// Define constants for fuzzy tuning regions
+#define ERROR_SMALL 0.05
+#define ERROR_MEDIUM 0.15
+#define ERROR_CHANGE_SMALL 0.01
+#define ERROR_CHANGE_MEDIUM 0.05
+
 //
 InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
 OutputDataStruct outputDataLoop; // sadrzi izlazne podatke
@@ -137,6 +164,7 @@ void readInputs(InputDataStruct &inputData) {
 }
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
   filterMagneticData();
+  updateFuzzyParameters();
   discretePID();
   gripperPositionTracking();
   if (inputData.button2==LOW)
@@ -155,6 +183,10 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
    
   if (stateDataLoop.zeroing)
       zeriongFunc();
+  else
+  {
+    stateDataLoop.target_voltage=PIDDataLoop.u;
+  }
   if (stateDataLoop.absoluteAngle> MAX_ANGLE  && stateDataLoop.target_voltage>0)
   {
     stateDataLoop.target_voltage=0;
@@ -168,26 +200,19 @@ void outputResults(OutputDataStruct &outputData){
     motor.move(outputData.target_voltage);
 }
 void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData){
-/*
-    Serial.print(inputData.x);
-    Serial.print(",");
-    Serial.print(inputData.y);
-    Serial.print(",");
-    Serial.print(inputData.z);
-    Serial.print(",");
-    Serial.print(inputData.tleSensor);
-    Serial.println();
-*/
-Serial.print(stateDataLoop.x_filtered);
-Serial.print(",");
-Serial.print(outputData.target_voltage==0?0:1);
-Serial.print(",");
-Serial.print(stateDataLoop.absoluteAngle);
-Serial.print(",");
-Serial.print(PIDDataLoop.u);
-Serial.print(",");  
-Serial.println(stateDataLoop.degreeOffset);
-
+  // Calculate magnitude for monitoring
+  float magnitude = calculateMagnitude(stateDataLoop.x_filtered, stateDataLoop.y_filtered, stateDataLoop.z_filtered);
+  
+  // Output formatted data for serial plotter
+  Serial.print(magnitude);        // Current magnetic field magnitude
+  Serial.print(",");
+  Serial.print(fuzzyTuner.setpoint); // Setpoint (target value)
+  Serial.print(",");  
+  Serial.print(PIDDataLoop.k);    // Current k value from fuzzy tuner
+  Serial.print(",");  
+  Serial.print(PIDDataLoop.u);    // Current control output
+  Serial.print(",");
+  Serial.println(outputData.target_voltage); // Actual voltage sent to motor
 }
 
 void discretePID()
@@ -198,8 +223,6 @@ void discretePID()
   // and update the motor's target voltage accordingly.
   // You can use the inputData and outputData structures
   PIDDataLoop.y=stateDataLoop.x_filtered;
-  PIDDataLoop.r=0.1;
-  PIDDataLoop.P=10;
   PIDDataLoop.T_passed=millis();
   PIDDataLoop.T=(PIDDataLoop.T_passed-PIDDataLoop.T_old)/1000.0;
   PIDDataLoop.T_old=PIDDataLoop.T_passed;
@@ -226,9 +249,7 @@ void discretePID()
     PIDDataLoop.u=PIDDataLoop.v;
 
   PIDDataLoop.I=PIDDataLoop.I+bi*(PIDDataLoop.r-PIDDataLoop.y)+br*(PIDDataLoop.u-PIDDataLoop.v);
-  PIDDataLoop.y_old=PIDDataLoop.y;
-  OutputDataStruct.target_voltage=PIDDataLoop.u;
-  
+  PIDDataLoop.y_old=PIDDataLoop.y;  
 }
 void initDiscretePID()
 {
@@ -241,8 +262,8 @@ void initDiscretePID()
   PIDDataLoop.P=0;
   PIDDataLoop.I=0;
   PIDDataLoop.D=0;
-  PIDDataLoop.umax=1;
-  PIDDataLoop.umin=-1;
+  PIDDataLoop.umax=5;
+  PIDDataLoop.umin=-5;
   PIDDataLoop.y_old=0;
   PIDDataLoop.y=0;
   PIDDataLoop.r=0;
@@ -322,6 +343,11 @@ void gripperPositionTracking() {
   stateDataLoop.oldRawAngle=newRaw;
 }
 
+float calculateMagnitude(float x, float y, float z) {
+  // Calculate the magnitude (Euclidean norm) of a 3D vector
+  return sqrt(x*x + y*y + z*z);
+}
+
 void filterMagneticData() {
   // Apply a low-pass filter to the magnetic field data
   stateDataLoop.x_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.x_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.x;
@@ -348,6 +374,130 @@ void findingStablePosition() {
   }
 
 }
+
+void updateFuzzyParameters() {
+  // Use the same setpoint as the PID reference input
+  fuzzyTuner.setpoint = PIDDataLoop.r;
+  
+  // Calculate current magnetic field vector magnitude
+  float magnitude = calculateMagnitude(stateDataLoop.x_filtered, stateDataLoop.y_filtered, stateDataLoop.z_filtered);
+  
+  // Calculate current error (difference between setpoint and actual magnitude)
+  float error = fuzzyTuner.setpoint - magnitude;
+  
+  // Calculate time passed since last adjustment
+  unsigned long currentTime = millis();
+  float deltaTime = (fuzzyTuner.prevTime == 0) ? 0 : (currentTime - fuzzyTuner.prevTime) / 1000.0;
+  
+  // Calculate rate of change of error (only if we have a valid time difference)
+  float errorChange = 0;
+  if (deltaTime > 0.01) { // Avoid division by very small numbers
+    errorChange = (error - fuzzyTuner.prevError) / deltaTime;
+  }
+  
+  // Store current values for next iteration
+  fuzzyTuner.prevError = error;
+  fuzzyTuner.prevTime = currentTime;
+  
+  // Apply fuzzy logic to adjust the k value
+  
+  // Convert error and errorChange to absolute values for rule evaluation
+  float absError = abs(error);
+  float absErrorChange = abs(errorChange);
+  
+  // Membership values for error
+  float errorSmall = 0, errorMedium = 0, errorLarge = 0;
+  
+  // Determine error membership
+  if (absError < ERROR_SMALL) {
+    errorSmall = 1.0;
+  } else if (absError < ERROR_MEDIUM) {
+    errorSmall = (ERROR_MEDIUM - absError) / (ERROR_MEDIUM - ERROR_SMALL);
+    errorMedium = 1.0 - errorSmall;
+  } else {
+    errorMedium = (absError > 2*ERROR_MEDIUM) ? 0 : (2*ERROR_MEDIUM - absError) / ERROR_MEDIUM;
+    errorLarge = 1.0 - errorMedium;
+  }
+  
+  // Membership values for error change rate
+  float changeSmall = 0, changeMedium = 0, changeLarge = 0;
+  
+  // Determine error change membership
+  if (absErrorChange < ERROR_CHANGE_SMALL) {
+    changeSmall = 1.0;
+  } else if (absErrorChange < ERROR_CHANGE_MEDIUM) {
+    changeSmall = (ERROR_CHANGE_MEDIUM - absErrorChange) / (ERROR_CHANGE_MEDIUM - ERROR_CHANGE_SMALL);
+    changeMedium = 1.0 - changeSmall;
+  } else {
+    changeMedium = (absErrorChange > 2*ERROR_CHANGE_MEDIUM) ? 0 : (2*ERROR_CHANGE_MEDIUM - absErrorChange) / ERROR_CHANGE_MEDIUM;
+    changeLarge = 1.0 - changeMedium;
+  }
+  
+  // Fuzzy rule base - determine output membership
+  float kSmall = 0, kMedium = 0, kLarge = 0;
+  
+  // Rule 1: If error is small and change is small, k should be small
+  float rule1 = min(errorSmall, changeSmall);
+  kSmall = max(kSmall, rule1);
+  
+  // Rule 2: If error is small and change is medium, k should be medium
+  float rule2 = min(errorSmall, changeMedium);
+  kMedium = max(kMedium, rule2);
+  
+  // Rule 3: If error is small and change is large, k should be large
+  float rule3 = min(errorSmall, changeLarge);
+  kLarge = max(kLarge, rule3);
+  
+  // Rule 4: If error is medium and change is small, k should be medium
+  float rule4 = min(errorMedium, changeSmall);
+  kMedium = max(kMedium, rule4);
+  
+  // Rule 5: If error is medium and change is medium, k should be medium
+  float rule5 = min(errorMedium, changeMedium);
+  kMedium = max(kMedium, rule5);
+  
+  // Rule 6: If error is medium and change is large, k should be large
+  float rule6 = min(errorMedium, changeLarge);
+  kLarge = max(kLarge, rule6);
+  
+  // Rule 7: If error is large and change is small, k should be large
+  float rule7 = min(errorLarge, changeSmall);
+  kLarge = max(kLarge, rule7);
+  
+  // Rule 8: If error is large and change is medium, k should be large
+  float rule8 = min(errorLarge, changeMedium);
+  kLarge = max(kLarge, rule8);
+  
+  // Rule 9: If error is large and change is large, k should be large
+  float rule9 = min(errorLarge, changeLarge);
+  kLarge = max(kLarge, rule9);
+  
+  // Defuzzify using centroid method
+  float numerator = kSmall * fuzzyTuner.k_min + 
+                    kMedium * ((fuzzyTuner.k_max + fuzzyTuner.k_min) / 2) + 
+                    kLarge * fuzzyTuner.k_max;
+  
+  float denominator = kSmall + kMedium + kLarge;
+  
+  // Apply the calculated k value with safety checks
+  if (denominator > 0.01) { // Avoid division by very small numbers
+    PIDDataLoop.k = numerator / denominator;
+    
+    // Ensure k stays within bounds
+    PIDDataLoop.k = constrain(PIDDataLoop.k, fuzzyTuner.k_min, fuzzyTuner.k_max);
+    
+    // Debug output
+    Serial.print("Magnitude: ");
+    Serial.print(magnitude);
+    Serial.print(", Error: ");
+    Serial.print(error);
+    Serial.print(", Change: ");
+    Serial.print(errorChange);
+    Serial.print(", New K: ");
+    Serial.println(PIDDataLoop.k);
+  }
+}
+
 void setup() {
   // use monitoring with serial
   Serial.begin(115200);
@@ -402,6 +552,7 @@ void setup() {
   pinMode(BUTTON2, INPUT);
 
   Serial.print("setup done.\n");
+  stateDataLoop.x_speed_time_prev = millis();
 
   _delay(1000);
 }
