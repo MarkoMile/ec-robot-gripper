@@ -59,6 +59,16 @@ struct stateStruct
   float lastMagneticMagnitude;          // Last measured magnetic magnitude for comparison
   float angleChangeRate;                // Rate of angle change for elasticity detection
   float minAngleChangeRate;             // Minimum rate threshold for angle change
+  // New variables for improved object detection
+  bool isSoftObjectConfirmed = false;           // Flag for tracking confirmed soft objects
+  unsigned long softObjectConfirmationTime = 0; // Time when soft object was first detected
+  unsigned long softConfirmationDuration = 300; // Time required to confirm soft object (ms)
+  int elasticityCounter = 0;                    // Counter for tracking elasticity detections
+  int elasticityThreshold = 3;                  // Number of elasticity detections required to confirm soft object
+  float elasticityMemory[5] = {0};              // Circular buffer to store recent elasticity readings
+  int elasticityMemoryIndex = 0;                // Current index in elasticity memory
+  float hardToSoftRatio = 3.0;                  // Ratio for hysteresis in hard-to-soft transition
+  float softToHardRatio = 1.5;                  // Ratio for hysteresis in soft-to-hard transition
   // Magnetic sensor calibration variables
   bool calibrationNeeded = false;
   bool isCalibrating = false;
@@ -255,7 +265,7 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
   if (currentTime - lastDetailedStatus >= 1000)
   {
     // Uncomment this for detailed JSON status
-    /*
+
     Serial.print("{\"x\":");
     Serial.print(stateDataLoop.x_filtered);
     Serial.print(",\"y\":");
@@ -275,7 +285,6 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     Serial.print(",\"calibrating\":");
     Serial.print(currentCalibrationState ? "true" : "false");
     Serial.println("}");
-    */
 
     lastDetailedStatus = currentTime;
   }
@@ -442,11 +451,20 @@ void findingStablePosition()
       stateDataLoop.stallCheckLastTime = currentTime;
       stateDataLoop.stallCheckLastAngle = currentAngle;
       stateDataLoop.stallDetectionTime = 0;
+      stateDataLoop.softObjectConfirmationTime = 0;
       Serial.println("Object detected, starting adaptive grip");
     }
 
     // Apply adaptive grip force based on object hardness
-    stateDataLoop.target_voltage = stateDataLoop.isHardObject ? stateDataLoop.hardObjectForce : stateDataLoop.softObjectForce;
+    // If we've confirmed it's a soft object, always use soft force
+    if (stateDataLoop.isSoftObjectConfirmed)
+    {
+      stateDataLoop.target_voltage = stateDataLoop.softObjectForce;
+    }
+    else
+    {
+      stateDataLoop.target_voltage = stateDataLoop.isHardObject ? stateDataLoop.hardObjectForce : stateDataLoop.softObjectForce;
+    }
 
     if (currentTime - stateDataLoop.stallCheckLastTime >= 100)
     { // Check every 100ms
@@ -465,6 +483,10 @@ void findingStablePosition()
       // Store angle change rate for reference
       stateDataLoop.angleChangeRate = angleRate;
 
+      // Add this reading to our elasticity memory
+      stateDataLoop.elasticityMemory[stateDataLoop.elasticityMemoryIndex] = angleRate;
+      stateDataLoop.elasticityMemoryIndex = (stateDataLoop.elasticityMemoryIndex + 1) % 5; // Circular buffer
+
       // Debug output
       Serial.print("Angle rate: ");
       Serial.print(angleRate);
@@ -475,7 +497,39 @@ void findingStablePosition()
       bool isMovingSignificantly = angleRate > stateDataLoop.minAngleChangeRate;
       bool hasMagneticSignal = magneticMagnitude > stateDataLoop.magneticMagnitudeHardThreshold;
 
-      if (hasMagneticSignal && !isMovingSignificantly)
+      // If it's already confirmed as a soft object, we need strong evidence to change our mind
+      if (stateDataLoop.isSoftObjectConfirmed)
+      {
+        // Only consider changing to hard if magnetic signal is much stronger than threshold
+        // This creates hysteresis to prevent oscillation
+        if (hasMagneticSignal && !isMovingSignificantly &&
+            magneticMagnitude > (stateDataLoop.magneticMagnitudeHardThreshold * stateDataLoop.softToHardRatio))
+        {
+
+          // Require longer confirmation for switching from soft to hard
+          if (stateDataLoop.stallDetectionTime == 0)
+          {
+            stateDataLoop.stallDetectionTime = currentTime;
+          }
+          else if (currentTime - stateDataLoop.stallDetectionTime >= stateDataLoop.stallConfirmationTime * 2)
+          {
+            // Hard object confirmed after extended confirmation period
+            stateDataLoop.isSoftObjectConfirmed = false; // No longer confirmed as soft
+            stateDataLoop.isHardObject = true;
+            Serial.print("Soft object changed to hard (magnitude: ");
+            Serial.print(magneticMagnitude);
+            Serial.println("), increasing grip force");
+            stateDataLoop.target_voltage = stateDataLoop.hardObjectForce;
+          }
+        }
+        else
+        {
+          // Any sign of movement confirms it's still soft
+          stateDataLoop.stallDetectionTime = 0;
+        }
+      }
+      // Not confirmed as soft yet
+      else if (hasMagneticSignal && !isMovingSignificantly)
       {
         // High magnetic signal but not moving significantly - likely a hard object
         if (stateDataLoop.stallDetectionTime == 0)
@@ -485,8 +539,8 @@ void findingStablePosition()
         }
         else if (currentTime - stateDataLoop.stallDetectionTime >= stateDataLoop.stallConfirmationTime)
         {
-          // Hard object confirmed after confirmation period
-          if (!stateDataLoop.isHardObject)
+          // Hard object confirmed after confirmation period, but only if not confirmed as soft
+          if (!stateDataLoop.isHardObject && !stateDataLoop.isSoftObjectConfirmed)
           {
             stateDataLoop.isHardObject = true;
             Serial.print("Hard object detected (magnitude: ");
@@ -494,7 +548,6 @@ void findingStablePosition()
             Serial.print(", angle rate: ");
             Serial.print(angleRate);
             Serial.println(" deg/s), increasing grip force");
-            // Immediately adjust grip force for hard object
             stateDataLoop.target_voltage = stateDataLoop.hardObjectForce;
           }
         }
@@ -504,13 +557,36 @@ void findingStablePosition()
         // If we're still moving significantly even with magnetic signal, it's probably elastic/soft
         stateDataLoop.stallDetectionTime = 0;
 
-        if (stateDataLoop.isHardObject)
+        // Count this as evidence for a soft object
+        stateDataLoop.elasticityCounter++;
+
+        // Start tracking when we first detected elasticity
+        if (stateDataLoop.softObjectConfirmationTime == 0)
         {
-          // If previously detected as hard but now showing elasticity
+          stateDataLoop.softObjectConfirmationTime = currentTime;
+        }
+
+        // Check if we have enough evidence for a soft object
+        if (stateDataLoop.elasticityCounter >= stateDataLoop.elasticityThreshold ||
+            (currentTime - stateDataLoop.softObjectConfirmationTime >= stateDataLoop.softConfirmationDuration))
+        {
+          // Confirm as a soft object
+          stateDataLoop.isSoftObjectConfirmed = true;
           stateDataLoop.isHardObject = false;
-          Serial.print("Elastic object detected (moving at: ");
-          Serial.print(angleRate);
-          Serial.println(" deg/s), applying softer grip force");
+
+          if (stateDataLoop.isHardObject)
+          {
+            Serial.print("Hard object changed to soft/elastic (moving at: ");
+            Serial.print(angleRate);
+            Serial.println(" deg/s), applying softer grip force");
+          }
+          else
+          {
+            Serial.print("Soft/elastic object confirmed (moving at: ");
+            Serial.print(angleRate);
+            Serial.println(" deg/s), maintaining soft grip force");
+          }
+
           stateDataLoop.target_voltage = stateDataLoop.softObjectForce;
         }
       }
@@ -529,7 +605,9 @@ void findingStablePosition()
       Serial.print(" deg/s, Magnetic: ");
       Serial.print(magneticMagnitude);
       Serial.print(", Hard object: ");
-      Serial.println(stateDataLoop.isHardObject ? "Yes" : "No");
+      Serial.print(stateDataLoop.isHardObject ? "Yes" : "No");
+      Serial.print(", Soft confirmed: ");
+      Serial.println(stateDataLoop.isSoftObjectConfirmed ? "Yes" : "No");
     }
   }
   else
@@ -538,7 +616,9 @@ void findingStablePosition()
     stateDataLoop.target_voltage = stateDataLoop.adaptiveGripForce;
     stateDataLoop.objectDetected = false;
     stateDataLoop.isHardObject = false;
+    stateDataLoop.isSoftObjectConfirmed = false;
     stateDataLoop.stallDetectionTime = 0;
+    stateDataLoop.elasticityCounter = 0;
   }
 }
 
@@ -546,9 +626,19 @@ void resetAdaptiveGripState()
 {
   stateDataLoop.objectDetected = false;
   stateDataLoop.isHardObject = false;
+  stateDataLoop.isSoftObjectConfirmed = false;
   stateDataLoop.stallDetectionTime = 0;
+  stateDataLoop.softObjectConfirmationTime = 0;
+  stateDataLoop.elasticityCounter = 0;
+  stateDataLoop.elasticityMemoryIndex = 0;
   stateDataLoop.stallCheckLastTime = millis();
   stateDataLoop.stallCheckLastAngle = stateDataLoop.absoluteAngle;
+
+  // Reset elasticity memory
+  for (int i = 0; i < 5; i++)
+  {
+    stateDataLoop.elasticityMemory[i] = 0;
+  }
 }
 
 /**
@@ -568,7 +658,7 @@ void initAdaptiveGripping()
 {
   // force is negative for gripping (larger absolute value means more force)
   stateDataLoop.adaptiveGripForce = -1.5;             // Default grip force
-  stateDataLoop.hardObjectForce = -3.5;               // Higher force for hard/heavy objects
+  stateDataLoop.hardObjectForce = -4.5;               // Higher force for hard/heavy objects
   stateDataLoop.softObjectForce = -1;                 // Lower force for soft/deformable objects
   stateDataLoop.stallDetectionThreshold = 1.0;        // degrees - minimum angle change expected
   stateDataLoop.stallConfirmationTime = 50;           // Time to confirm object hardness (ms)
@@ -576,6 +666,21 @@ void initAdaptiveGripping()
   stateDataLoop.minAngleChangeRate = 0.5;             // Minimum angle change rate for elastic objects (degrees/100ms)
   stateDataLoop.lastMagneticMagnitude = 0.0;
   stateDataLoop.angleChangeRate = 0.0;
+
+  // Initialize new detection variables
+  stateDataLoop.elasticityCounter = 0;
+  stateDataLoop.elasticityThreshold = 3;
+  stateDataLoop.elasticityMemoryIndex = 0;
+  stateDataLoop.isSoftObjectConfirmed = false;
+  stateDataLoop.softObjectConfirmationTime = 0;
+  stateDataLoop.softConfirmationDuration = 300; // ms
+
+  // Clear elasticity memory array
+  for (int i = 0; i < 5; i++)
+  {
+    stateDataLoop.elasticityMemory[i] = 0;
+  }
+
   resetAdaptiveGripState();
 }
 
