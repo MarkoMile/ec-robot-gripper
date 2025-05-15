@@ -169,7 +169,7 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
 */
 Serial.print(stateDataLoop.x_filtered);
 Serial.print(",");
-Serial.println(outputData.target_voltage==0?0:1);
+Serial.print(outputData.target_voltage==0?0:1);
 Serial.print(",");
 Serial.print(stateDataLoop.absoluteAngle);
 Serial.print(",");
