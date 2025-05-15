@@ -4,7 +4,7 @@
 #include <SimpleFOC.h>
 
 #define MAX_ANGLE 1000
-#define PID_Setpoint 2;
+#define PID_Setpoint 0.6;
 struct InputDataStruct{
  double x, y, z;
  float tleSensor;
@@ -26,7 +26,7 @@ struct stateStruct{
     float rawAngle;
     
     float oldRawAngle=0;
-    bool gripping;
+    bool gripping=false;
     float v;
     float absoluteAngle;
     float oldAbsoluteAngle=-1234;
@@ -82,8 +82,8 @@ FuzzyTunerStruct fuzzyTuner = {
     .setpoint = 0.2,      // Target setpoint magnitude
     .prevError = 0.0,
     .prevTime = 0.0,
-    .k_min = 0.5,
-    .k_max = 20.0
+    .k_min = 0.3,         // Lowered from 0.5
+    .k_max = 10.0         // Lowered from 20.0
 };
 
 // Define constants for fuzzy tuning regions with more crossover
@@ -179,14 +179,12 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
     stateDataLoop.gripping=true;
   }
   if (stateDataLoop.gripping)
-    findingStablePosition();
+      stateDataLoop.target_voltage=-PIDDataLoop.u; //besause - is positive
    
   if (stateDataLoop.zeroing)
       zeriongFunc();
-  else
-  {
-    stateDataLoop.target_voltage=-PIDDataLoop.u; //besause - is positive
-  }
+
+  
   if (stateDataLoop.absoluteAngle> MAX_ANGLE  && stateDataLoop.target_voltage>0)
   {
     stateDataLoop.target_voltage=0;
@@ -261,8 +259,8 @@ void initDiscretePID()
   PIDDataLoop.P=0;
   PIDDataLoop.I=0;
   PIDDataLoop.D=0;
-  PIDDataLoop.umax=5;
-  PIDDataLoop.umin=-5;
+  PIDDataLoop.umax=3;
+  PIDDataLoop.umin=-1;
   PIDDataLoop.y_old=0;
   PIDDataLoop.y=0;
   PIDDataLoop.r=PID_Setpoint;
@@ -432,51 +430,58 @@ void updateFuzzyParameters() {
     changeLarge = 1.0 - changeMedium;
   }
   
-  // Fuzzy rule base - determine output membership
+  // Fuzzy rule base - determine output membership with bias towards smaller K values
   float kSmall = 0, kMedium = 0, kLarge = 0;
   
   // Rule 1: If error is small and change is small, k should be small
   float rule1 = min(errorSmall, changeSmall);
   kSmall = max(kSmall, rule1);
   
-  // Rule 2: If error is small and change is medium, k should be medium
+  // Rule 2: If error is small and change is medium, k should be small (changed from medium)
   float rule2 = min(errorSmall, changeMedium);
-  kMedium = max(kMedium, rule2);
+  kSmall = max(kSmall, rule2 * 0.7);
+  kMedium = max(kMedium, rule2 * 0.3);
   
-  // Rule 3: If error is small and change is large, k should be large
+  // Rule 3: If error is small and change is large, k should be medium (changed from large)
   float rule3 = min(errorSmall, changeLarge);
-  kLarge = max(kLarge, rule3);
+  kMedium = max(kMedium, rule3);
   
-  // Rule 4: If error is medium and change is small, k should be medium
+  // Rule 4: If error is medium and change is small, k should be small (changed from medium)
   float rule4 = min(errorMedium, changeSmall);
-  kMedium = max(kMedium, rule4);
+  kSmall = max(kSmall, rule4 * 0.6);
+  kMedium = max(kMedium, rule4 * 0.4);
   
   // Rule 5: If error is medium and change is medium, k should be medium
   float rule5 = min(errorMedium, changeMedium);
   kMedium = max(kMedium, rule5);
   
-  // Rule 6: If error is medium and change is large, k should be large
+  // Rule 6: If error is medium and change is large, k should be medium (changed from large)
   float rule6 = min(errorMedium, changeLarge);
-  kLarge = max(kLarge, rule6);
+  kMedium = max(kMedium, rule6 * 0.7);
+  kLarge = max(kLarge, rule6 * 0.3);
   
-  // Rule 7: If error is large and change is small, k should be large
+  // Rule 7: If error is large and change is small, k should be medium (changed from large)
   float rule7 = min(errorLarge, changeSmall);
-  kLarge = max(kLarge, rule7);
+  kMedium = max(kMedium, rule7);
   
   // Rule 8: If error is large and change is medium, k should be large
   float rule8 = min(errorLarge, changeMedium);
-  kLarge = max(kLarge, rule8);
+  kMedium = max(kMedium, rule8 * 0.3);
+  kLarge = max(kLarge, rule8 * 0.7);
   
   // Rule 9: If error is large and change is large, k should be large
   float rule9 = min(errorLarge, changeLarge);
   kLarge = max(kLarge, rule9);
   
-  // Defuzzify using centroid method
-  float numerator = kSmall * fuzzyTuner.k_min + 
-                    kMedium * ((fuzzyTuner.k_max + fuzzyTuner.k_min) / 2) + 
-                    kLarge * fuzzyTuner.k_max;
+  // Calculate medium value closer to the small value for lower overall gain
+  float kMediumValue = fuzzyTuner.k_min + (fuzzyTuner.k_max - fuzzyTuner.k_min) * 0.4; // Biased towards lower value (0.4 instead of 0.5)
   
-  float denominator = kSmall + kMedium + kLarge;
+  // Defuzzify using weighted average method with bias towards smaller K values
+  float numerator = (kSmall * fuzzyTuner.k_min * 1.2) +  // Give more weight to small K
+                    (kMedium * kMediumValue) + 
+                    (kLarge * fuzzyTuner.k_max * 0.9);   // Give less weight to large K
+  
+  float denominator = (kSmall * 1.2) + kMedium + (kLarge * 0.9);
   
   // Apply the calculated k value with safety checks
   if (denominator > 0.01) { // Avoid division by very small numbers
