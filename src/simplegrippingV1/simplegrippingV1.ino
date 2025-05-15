@@ -794,7 +794,7 @@ void initAdaptiveGripping()
   stateDataLoop.softObjectForce = -1;                 // Lower force for soft/deformable objects
   stateDataLoop.stallDetectionThreshold = 0.8;        // degrees - minimum angle change expected (lowered for sensitivity)
   stateDataLoop.stallConfirmationTime = 150;          // Time to confirm object hardness (ms) - increased for stability
-  stateDataLoop.magneticMagnitudeHardThreshold = 0.3; // Threshold for hard object detection using magnitude
+  stateDataLoop.magneticMagnitudeHardThreshold = 0.4; // Threshold for hard object detection using magnitude
   // Note: Initial detection threshold is lower (0.07) to catch all objects
   stateDataLoop.objectDetectionThreshold = 0.08; // magnetic magnitude threshold
   stateDataLoop.minAngleChangeRate = 50;         // Minimum angle change rate for elastic objects (degrees/100ms)
@@ -803,7 +803,7 @@ void initAdaptiveGripping()
 
   // Improved hysteresis values to prevent oscillation
   stateDataLoop.hardToSoftRatio = 2.5; // Reduced from 3.0 for easier transition to soft
-  stateDataLoop.softToHardRatio = 3;   // Increased from 1.5 for more stability
+  stateDataLoop.softToHardRatio = 5;   // Increased from 1.5 for more stability
 
   // Initialize new detection variables
   stateDataLoop.elasticityCounter = 0;
