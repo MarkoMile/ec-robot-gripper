@@ -177,8 +177,8 @@ void readInputs(InputDataStruct &inputData)
 void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
 {
   filterMagneticData();
-  updateFuzzyParameters();
-  discretePID();
+  // updateFuzzyParameters();
+  // discretePID();
   gripperPositionTracking();
 
   // Previous gripping state to detect changes
@@ -192,11 +192,15 @@ void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
     outputDataLoop.target_voltage = 0;
     return;
   }
-
   if (inputData.button2 == LOW)
   {
     stateDataLoop.target_voltage = 1;
     stateDataLoop.gripping = false;
+
+    // Explicitly reset the object detection flags when button2 is pressed
+    stateDataLoop.objectDetected = false;
+    stateDataLoop.isHardObject = false;
+    stateDataLoop.isSoftObjectConfirmed = false;
   }
   else
     stateDataLoop.target_voltage = 0;
