@@ -4,7 +4,7 @@
 #include <SimpleFOC.h>
 
 #define MAX_ANGLE 1000
-#define PID_Setpoint 0.6;
+#define PID_Setpoint 0.9;
 struct InputDataStruct{
  double x, y, z;
  float tleSensor;
@@ -201,7 +201,10 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
   // Calculate magnitude for monitoring
   float magnitude = calculateMagnitude(stateDataLoop.x_filtered, stateDataLoop.y_filtered, stateDataLoop.z_filtered);
   
-  // Output formatted data for serial plotter
+  static unsigned long lastDisplayTime = 0;
+  static float previousK = 0;
+  
+  // Output formatted data for serial plotter (comma separated values)
   Serial.print(magnitude);        // Current magnetic field magnitude
   Serial.print(",");
   Serial.print(fuzzyTuner.setpoint); // Setpoint (target value)
@@ -211,6 +214,28 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
   Serial.print(PIDDataLoop.u);    // Current control output
   Serial.print(",");
   Serial.println(outputData.target_voltage); // Actual voltage sent to motor
+  
+  // Every 500ms, print a detailed text report to show K changes clearly
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastDisplayTime > 500) {
+    lastDisplayTime = currentMillis;
+    
+    // Calculate change in K value
+    float deltaK = PIDDataLoop.k - previousK;
+    previousK = PIDDataLoop.k;
+    
+    // Print a more detailed text report
+    Serial.print("MAG:");
+    Serial.print(magnitude, 4);
+    Serial.print(" K:");
+    Serial.print(PIDDataLoop.k, 4);
+    Serial.print(" ΔK:");
+    Serial.print(deltaK, 4);
+    Serial.print(" ERROR:");
+    Serial.print(fuzzyTuner.setpoint - magnitude, 4);
+    Serial.print(" OUT:");
+    Serial.println(PIDDataLoop.u, 2);
+  }
 }
 
 void discretePID()
@@ -566,7 +591,7 @@ void loop() {
     readInputs(inputDataLoop);
     executeLogic(inputDataLoop,outputDataLoop);
     outputResults(outputDataLoop);
-    //serialComunication(inputDataLoop,outputDataLoop);
+    serialComunication(inputDataLoop,outputDataLoop);  // Uncommented this line to show values
   
 
 }
