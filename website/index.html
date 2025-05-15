@@ -484,11 +484,12 @@
         function updateGearRotation(currentAngleDegrees) {
             // Normalize angle to be 0-359.999 for calculations because currentAngleDegrees can be 0-1000
             currentAngleDegreesNormal = currentAngleDegrees % 360;
+            console.log("Current angle degrees (normalized):", currentAngleDegreesNormal);
 
             rawGearAngleOutput.textContent = `${currentAngleDegreesNormal.toFixed(1)}`;
             gearPointer.style.transform = `rotate(${currentAngleDegreesNormal}deg)`;
 
-            gearRevolutions = floor(currentAngleDegrees / 360);
+            gearRevolutions = Math.floor(currentAngleDegrees / 360);
             gearRevolutionsOutput.textContent = gearRevolutions;
 
             // --- New code for gripper finger update based on gear rotation ---
@@ -499,7 +500,7 @@
                 (GRIPPER_MAX_VISUAL_ANGLE_DEG - GRIPPER_MIN_VISUAL_ANGLE_DEG) +
                 GRIPPER_MIN_VISUAL_ANGLE_DEG;
 
-                
+
             // Clamp the angle to the visual range [GRIPPER_MIN_VISUAL_ANGLE_DEG, GRIPPER_MAX_VISUAL_ANGLE_DEG]
             newGripperFingerAngle = Math.max(GRIPPER_MIN_VISUAL_ANGLE_DEG, Math.min(newGripperFingerAngle, GRIPPER_MAX_VISUAL_ANGLE_DEG));
 

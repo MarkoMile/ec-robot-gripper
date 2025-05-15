@@ -4,72 +4,75 @@
 #include <SimpleFOC.h>
 
 #define MAX_ANGLE 1000
-struct InputDataStruct{
- double x, y, z;
- float tleSensor;
- float targetVoltage;
- bool button1;
+struct InputDataStruct
+{
+  double x, y, z;
+  float tleSensor;
+  float targetVoltage;
+  bool button1;
   bool button2;
 };
 
-struct OutputDataStruct{
-    float target_voltage;
+struct OutputDataStruct
+{
+  float target_voltage;
 };
 
-struct stateStruct{
-    float target_voltage;
-    float current;
-    float voltage;
-    float position;
-    float velocity;
-    float rawAngle;
-    
-    float oldRawAngle=0;
-    bool gripping;
-    float v;
-    float absoluteAngle;
-    float oldAbsoluteAngle=-1234;
-    float currentRawAngle;
-    float totalDegreesTraveled;
-    float degreeOffset;
-    bool zeroing=true;
-    float x_filtered=0;
-    float y_filtered=0;
-    float z_filtered=0;
-    float magneticAlphaFilter=0.02;
-    int numberOfRevolutions=0;
-    // zeroing tracking variables
-    unsigned long zeroLastTime = 0;
-    float zeroLastAngle = 0;
-    unsigned long zeroStableStart = 0;
-    
+struct stateStruct
+{
+  float target_voltage;
+  float current;
+  float voltage;
+  float position;
+  float velocity;
+  float rawAngle;
+
+  float oldRawAngle = 0;
+  bool gripping;
+  float v;
+  float absoluteAngle;
+  float oldAbsoluteAngle = -1234;
+  float currentRawAngle;
+  float totalDegreesTraveled;
+  float degreeOffset;
+  bool zeroing = true;
+  float x_filtered = 0;
+  float y_filtered = 0;
+  float z_filtered = 0;
+  float magneticAlphaFilter = 0.02;
+  int numberOfRevolutions = 0;
+  // zeroing tracking variables
+  unsigned long zeroLastTime = 0;
+  float zeroLastAngle = 0;
+  unsigned long zeroStableStart = 0;
 };
-struct PIDStruct{
-    float k;
-    long T;
-    long T_old;
-    long T_passed;
-    float Ti;
-    float Td;
-    float Tt;
-    float N=5;
-    float umax;
-    float umin;
-    float y;
-    float r;
-    float P;
-    float D;
-    float v;
-    float I;
-    float y_old;
-    float b;
-    float u;
+struct PIDStruct
+{
+  float k;
+  long T;
+  long T_old;
+  long T_passed;
+  float Ti;
+  float Td;
+  float Tt;
+  float N = 5;
+  float umax;
+  float umin;
+  float y;
+  float r;
+  float P;
+  float D;
+  float v;
+  float I;
+  float y_old;
+  float b;
+  float u;
 };
 //
-InputDataStruct inputDataLoop; // sadrzi informacije o senzorima
+InputDataStruct inputDataLoop;   // sadrzi informacije o senzorima
 OutputDataStruct outputDataLoop; // sadrzi izlazne podatke
-stateStruct stateDataLoop; // sadrzi stanje motora
-PIDStruct PIDDataLoop; // sadrzi PID parametre
+stateStruct stateDataLoop;       // sadrzi stanje motora
+PIDStruct PIDDataLoop;           // sadrzi PID parametre
 // define SPI pins for TLE5012 sensor
 #define PIN_SPI1_SS0 94  // Chip Select (CS) pin
 #define PIN_SPI1_MOSI 69 // MOSI pin
@@ -112,14 +115,14 @@ const int CALIBRATION_SAMPLES = 20;
 double xOffset = 0, yOffset = 0, zOffset = 0;
 #endif
 
+void readInputs(InputDataStruct &inputData)
+{
 
-void readInputs(InputDataStruct &inputData) {
-  
   // read the buttons
   inputData.button1 = digitalRead(BUTTON1);
   inputData.button2 = digitalRead(BUTTON2);
   // read the target voltage from the buttons
-  
+
   dut.setSensitivity(TLx493D_FULL_RANGE_e);
   dut.getMagneticField(&inputData.x, &inputData.y, &inputData.z);
 
@@ -127,65 +130,63 @@ void readInputs(InputDataStruct &inputData) {
   inputData.x -= xOffset;
   inputData.y -= yOffset;
   inputData.z -= zOffset;
-  if (inputData.button1 == LOW) 
+  if (inputData.button1 == LOW)
     stateDataLoop.gripping = true;
-  else if (inputData.button2 == LOW) 
+  else if (inputData.button2 == LOW)
     stateDataLoop.gripping = false;
-  
+
   tle5012Sensor.update();
-  inputData.tleSensor=tle5012Sensor.getSensorAngle();
+  inputData.tleSensor = tle5012Sensor.getSensorAngle();
 }
-void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData){
+void executeLogic(InputDataStruct &inputData, OutputDataStruct &outputData)
+{
   filterMagneticData();
   discretePID();
   gripperPositionTracking();
-  if (inputData.button2==LOW)
+  if (inputData.button2 == LOW)
   {
     stateDataLoop.target_voltage = 1;
-    stateDataLoop.gripping=false;
-  } 
+    stateDataLoop.gripping = false;
+  }
   else
     stateDataLoop.target_voltage = 0;
-  if (inputData.button1==LOW)
+  if (inputData.button1 == LOW)
   {
-    stateDataLoop.gripping=true;
+    stateDataLoop.gripping = true;
   }
   if (stateDataLoop.gripping)
     findingStablePosition();
-   
+
   if (stateDataLoop.zeroing)
-      zeriongFunc();
-  if (stateDataLoop.absoluteAngle> MAX_ANGLE  && stateDataLoop.target_voltage>0)
+    zeriongFunc();
+  if (stateDataLoop.absoluteAngle > MAX_ANGLE && stateDataLoop.target_voltage > 0)
   {
-    stateDataLoop.target_voltage=0;
+    stateDataLoop.target_voltage = 0;
   }
-  outputDataLoop.target_voltage=stateDataLoop.target_voltage;
-
+  outputDataLoop.target_voltage = stateDataLoop.target_voltage;
 }
-void outputResults(OutputDataStruct &outputData){
+void outputResults(OutputDataStruct &outputData)
+{
 
-    motor.loopFOC();
-    motor.move(outputData.target_voltage);
+  motor.loopFOC();
+  motor.move(outputData.target_voltage);
 }
-void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData){
-/*
-    Serial.print(inputData.x);
-    Serial.print(",");
-    Serial.print(inputData.y);
-    Serial.print(",");
-    Serial.print(inputData.z);
-    Serial.print(",");
-    Serial.print(inputData.tleSensor);
-    Serial.println();
-*/
-Serial.print(stateDataLoop.x_filtered);
-Serial.print(",");
-Serial.print(outputData.target_voltage==0?0:1);
-Serial.print(",");
-Serial.print(stateDataLoop.absoluteAngle);
-Serial.print(",");
-Serial.println(stateDataLoop.degreeOffset);
+void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData)
+{
 
+  // print in json
+
+  Serial.print("{\"x\":");
+  Serial.print(stateDataLoop.x_filtered);
+  Serial.print(",\"y\":");
+  Serial.print(stateDataLoop.y_filtered);
+  Serial.print(",\"z\":");
+  Serial.print(stateDataLoop.z_filtered);
+  Serial.print(",\"angle\":");
+  Serial.print(stateDataLoop.absoluteAngle);
+  Serial.print(",\"targetVoltage\":");
+  Serial.print(outputData.target_voltage);
+  Serial.println("}");
 }
 
 void discretePID()
@@ -195,51 +196,49 @@ void discretePID()
   // to perform the PID control calculations
   // and update the motor's target voltage accordingly.
   // You can use the inputData and outputData structures
-  PIDDataLoop.T_passed=millis();
-  PIDDataLoop.T=(PIDDataLoop.T_passed-PIDDataLoop.T_old)/1000.0;
-  PIDDataLoop.T_old=PIDDataLoop.T_passed;
+  PIDDataLoop.T_passed = millis();
+  PIDDataLoop.T = (PIDDataLoop.T_passed - PIDDataLoop.T_old) / 1000.0;
+  PIDDataLoop.T_old = PIDDataLoop.T_passed;
 
-  float bi=(PIDDataLoop.k*PIDDataLoop.T)/PIDDataLoop.Ti;
-  float br=PIDDataLoop.T/PIDDataLoop.Tt;
-  float ad=PIDDataLoop.Td/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
-  float bd=(PIDDataLoop.k*PIDDataLoop.Td*PIDDataLoop.N)/(PIDDataLoop.Td+PIDDataLoop.N*PIDDataLoop.T);
+  float bi = (PIDDataLoop.k * PIDDataLoop.T) / PIDDataLoop.Ti;
+  float br = PIDDataLoop.T / PIDDataLoop.Tt;
+  float ad = PIDDataLoop.Td / (PIDDataLoop.Td + PIDDataLoop.N * PIDDataLoop.T);
+  float bd = (PIDDataLoop.k * PIDDataLoop.Td * PIDDataLoop.N) / (PIDDataLoop.Td + PIDDataLoop.N * PIDDataLoop.T);
 
-  PIDDataLoop.y=inputDataLoop.targetVoltage;
-  PIDDataLoop.r=inputDataLoop.x;
-  PIDDataLoop.P=PIDDataLoop.k*(PIDDataLoop.b*PIDDataLoop.r-PIDDataLoop.y);
-  PIDDataLoop.D=ad*PIDDataLoop.D-bd*(PIDDataLoop.y-PIDDataLoop.y_old);
-  
-  PIDDataLoop.v=PIDDataLoop.P+PIDDataLoop.I+PIDDataLoop.D;
-  
-  if (PIDDataLoop.v>PIDDataLoop.umax)
-    PIDDataLoop.u=PIDDataLoop.umax;
-  else if (PIDDataLoop.v<PIDDataLoop.umin)
-    PIDDataLoop.u=PIDDataLoop.umin;
+  PIDDataLoop.y = inputDataLoop.targetVoltage;
+  PIDDataLoop.r = inputDataLoop.x;
+  PIDDataLoop.P = PIDDataLoop.k * (PIDDataLoop.b * PIDDataLoop.r - PIDDataLoop.y);
+  PIDDataLoop.D = ad * PIDDataLoop.D - bd * (PIDDataLoop.y - PIDDataLoop.y_old);
+
+  PIDDataLoop.v = PIDDataLoop.P + PIDDataLoop.I + PIDDataLoop.D;
+
+  if (PIDDataLoop.v > PIDDataLoop.umax)
+    PIDDataLoop.u = PIDDataLoop.umax;
+  else if (PIDDataLoop.v < PIDDataLoop.umin)
+    PIDDataLoop.u = PIDDataLoop.umin;
   else
-    PIDDataLoop.u=PIDDataLoop.v;
+    PIDDataLoop.u = PIDDataLoop.v;
 
-  PIDDataLoop.I=PIDDataLoop.I+bi*(PIDDataLoop.r-PIDDataLoop.y)+br*(PIDDataLoop.u-PIDDataLoop.v);
-  PIDDataLoop.y_old=PIDDataLoop.y;
-
-  
+  PIDDataLoop.I = PIDDataLoop.I + bi * (PIDDataLoop.r - PIDDataLoop.y) + br * (PIDDataLoop.u - PIDDataLoop.v);
+  PIDDataLoop.y_old = PIDDataLoop.y;
 }
 void initDiscretePID()
 {
-  PIDDataLoop.b=0.9;
-  PIDDataLoop.Ti=1;
-  PIDDataLoop.Tt=1;
-  PIDDataLoop.Td=1;
-  PIDDataLoop.N=6;
-  PIDDataLoop.k=1;
-  PIDDataLoop.P=0;
-  PIDDataLoop.I=0;
-  PIDDataLoop.D=0;
-  PIDDataLoop.umax=1;
-  PIDDataLoop.umin=-1;
-  PIDDataLoop.y_old=0;
-  PIDDataLoop.y=0;
-  PIDDataLoop.r=0;
-  PIDDataLoop.T_old=millis()/1000.0;
+  PIDDataLoop.b = 0.9;
+  PIDDataLoop.Ti = 1;
+  PIDDataLoop.Tt = 1;
+  PIDDataLoop.Td = 1;
+  PIDDataLoop.N = 6;
+  PIDDataLoop.k = 1;
+  PIDDataLoop.P = 0;
+  PIDDataLoop.I = 0;
+  PIDDataLoop.D = 0;
+  PIDDataLoop.umax = 1;
+  PIDDataLoop.umin = -1;
+  PIDDataLoop.y_old = 0;
+  PIDDataLoop.y = 0;
+  PIDDataLoop.r = 0;
+  PIDDataLoop.T_old = millis() / 1000.0;
 
   /*
       float k;
@@ -259,89 +258,101 @@ void initDiscretePID()
     float y_old;*/
 }
 
-void zeriongFunc() {
-    unsigned long now = millis();
-    float currentAngle = inputDataLoop.tleSensor * (57.295779513); // convert to degrees
-    float dt = (stateDataLoop.zeroLastTime == 0) ? 0 : (now - stateDataLoop.zeroLastTime) / 1000.0;
-    stateDataLoop.zeroLastTime = now;
-    float speed = (dt > 0) ? abs(currentAngle - stateDataLoop.zeroLastAngle) / dt : 0;
-    stateDataLoop.zeroLastAngle = currentAngle;
-    const float speedThreshold = 15; // deg/s threshold for stability
-    Serial.println(dt);
-    const unsigned long stableDuration = 1000; // ms required to be stable
-    Serial.print("Speed: ");
-    Serial.println(speed);
-    if (speed > speedThreshold) {
-        // still moving: continue zeroing motion
-        stateDataLoop.target_voltage = -1;
-        stateDataLoop.zeroStableStart = 0;
-        Serial.println("zeroing in progress");
-    } else {
-        // detected low speed: start stable timer
-        if (stateDataLoop.zeroStableStart == 0) {
-            stateDataLoop.zeroStableStart = now;
-        }
-        if (now - stateDataLoop.zeroStableStart >= stableDuration) {
-            // arm is stable: set as zero position
-            stateDataLoop.target_voltage = 0;
-            stateDataLoop.zeroing = false;
-            stateDataLoop.degreeOffset = currentAngle;
-            stateDataLoop.numberOfRevolutions = 0;
-            Serial.println("zeroing done");
-        } else {
-            // waiting to confirm stability
-            stateDataLoop.target_voltage = -1;
-            Serial.println("zeroing stable...");
-        }
+void zeriongFunc()
+{
+  unsigned long now = millis();
+  float currentAngle = inputDataLoop.tleSensor * (57.295779513); // convert to degrees
+  float dt = (stateDataLoop.zeroLastTime == 0) ? 0 : (now - stateDataLoop.zeroLastTime) / 1000.0;
+  stateDataLoop.zeroLastTime = now;
+  float speed = (dt > 0) ? abs(currentAngle - stateDataLoop.zeroLastAngle) / dt : 0;
+  stateDataLoop.zeroLastAngle = currentAngle;
+  const float speedThreshold = 15; // deg/s threshold for stability
+  Serial.println(dt);
+  const unsigned long stableDuration = 1000; // ms required to be stable
+  Serial.print("Speed: ");
+  Serial.println(speed);
+  if (speed > speedThreshold)
+  {
+    // still moving: continue zeroing motion
+    stateDataLoop.target_voltage = -1;
+    stateDataLoop.zeroStableStart = 0;
+    Serial.println("zeroing in progress");
+  }
+  else
+  {
+    // detected low speed: start stable timer
+    if (stateDataLoop.zeroStableStart == 0)
+    {
+      stateDataLoop.zeroStableStart = now;
     }
+    if (now - stateDataLoop.zeroStableStart >= stableDuration)
+    {
+      // arm is stable: set as zero position
+      stateDataLoop.target_voltage = 0;
+      stateDataLoop.zeroing = false;
+      stateDataLoop.degreeOffset = currentAngle;
+      stateDataLoop.numberOfRevolutions = 0;
+      Serial.println("zeroing done");
+    }
+    else
+    {
+      // waiting to confirm stability
+      stateDataLoop.target_voltage = -1;
+      Serial.println("zeroing stable...");
+    }
+  }
 }
 
-void gripperPositionTracking() {
+void gripperPositionTracking()
+{
   // 1. Read the new sensor value
   float newRaw = tle5012Sensor.getSensorAngle() * (57.295779513); // convert to degrees
   // 2. Compute raw delta
-  if (newRaw <30 && stateDataLoop.oldRawAngle > 330) {
+  if (newRaw < 30 && stateDataLoop.oldRawAngle > 330)
+  {
     // if the new value is less than 30 and the old value is greater than 330
     // then we have crossed the 0 degree line
     stateDataLoop.numberOfRevolutions++;
-  } else if (newRaw > 330 && stateDataLoop.oldRawAngle < 30) {
+  }
+  else if (newRaw > 330 && stateDataLoop.oldRawAngle < 30)
+  {
     // if the new value is greater than 330 and the old value is less than 30
     // then we have crossed the 360 degree line
     stateDataLoop.numberOfRevolutions--;
   }
   // 3. Unwrap at ±half‐circle
-  
-  stateDataLoop.absoluteAngle = newRaw + (stateDataLoop.numberOfRevolutions * 360) - stateDataLoop.degreeOffset;  
-  stateDataLoop.oldRawAngle=newRaw;
+
+  stateDataLoop.absoluteAngle = newRaw + (stateDataLoop.numberOfRevolutions * 360) - stateDataLoop.degreeOffset;
+  stateDataLoop.oldRawAngle = newRaw;
 }
 
-void filterMagneticData() {
+void filterMagneticData()
+{
   // Apply a low-pass filter to the magnetic field data
   stateDataLoop.x_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.x_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.x;
   stateDataLoop.y_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.y_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.y;
   stateDataLoop.z_filtered = (1 - stateDataLoop.magneticAlphaFilter) * stateDataLoop.z_filtered + stateDataLoop.magneticAlphaFilter * inputDataLoop.z;
 }
 
-void findingStablePosition() {
+void findingStablePosition()
+{
   // Implement the logic to find the stable position of the gripper
   // This function can be called when the gripper is not gripping
   // and you want to find a stable position based on the magnetic field data.
   // You can use the filtered magnetic data (x_filtered, y_filtered, z_filtered)
   // to determine the stable position.
-  if(abs(stateDataLoop.x_filtered)>0.08)
+  if (abs(stateDataLoop.x_filtered) > 0.08)
   {
-    stateDataLoop.target_voltage=0;
-    
+    stateDataLoop.target_voltage = 0;
   }
   else
   {
 
-    stateDataLoop.target_voltage=-5;
-    
+    stateDataLoop.target_voltage = -5;
   }
-
 }
-void setup() {
+void setup()
+{
   // use monitoring with serial
   Serial.begin(115200);
   // enable more verbose output for debugging
@@ -359,7 +370,8 @@ void setup() {
   // as a protection measure for the low-resistance motors
   // this value is fixed on startup
   driver.voltage_limit = 6;
-  if (!driver.init()) {
+  if (!driver.init())
+  {
     Serial.println("Driver init failed!");
     return;
   }
@@ -399,14 +411,13 @@ void setup() {
   _delay(1000);
 }
 
-void loop() {
+void loop()
+{
 
-    readInputs(inputDataLoop);
-    executeLogic(inputDataLoop,outputDataLoop);
-    outputResults(outputDataLoop);
-    serialComunication(inputDataLoop,outputDataLoop);
-  
-
+  readInputs(inputDataLoop);
+  executeLogic(inputDataLoop, outputDataLoop);
+  outputResults(outputDataLoop);
+  serialComunication(inputDataLoop, outputDataLoop);
 }
 
 #if ENABLE_MAGNETIC_SENSOR
@@ -414,10 +425,12 @@ void loop() {
  * @brief Calibrates the magnetic field sensor by calculating the average
  * offsets for the X, Y, and Z axes over a series of samples.
  */
-void calibrateSensor() {
+void calibrateSensor()
+{
   double sumX = 0, sumY = 0, sumZ = 0;
 
-  for (int i = 0; i < CALIBRATION_SAMPLES; ++i) {
+  for (int i = 0; i < CALIBRATION_SAMPLES; ++i)
+  {
     double temp;
     double valX, valY, valZ;
 
