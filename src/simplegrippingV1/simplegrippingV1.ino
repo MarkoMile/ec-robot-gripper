@@ -656,14 +656,15 @@ float calculateMagneticMagnitude()
 
 void initAdaptiveGripping()
 {
+  // forces and thresholds and rates:
   // force is negative for gripping (larger absolute value means more force)
-  stateDataLoop.adaptiveGripForce = -1.5;             // Default grip force
-  stateDataLoop.hardObjectForce = -4.5;               // Higher force for hard/heavy objects
-  stateDataLoop.softObjectForce = -1;                 // Lower force for soft/deformable objects
-  stateDataLoop.stallDetectionThreshold = 1.0;        // degrees - minimum angle change expected
-  stateDataLoop.stallConfirmationTime = 50;           // Time to confirm object hardness (ms)
-  stateDataLoop.magneticMagnitudeHardThreshold = 0.1; // Threshold for hard object detection (adjust as needed)
-  stateDataLoop.minAngleChangeRate = 0.5;             // Minimum angle change rate for elastic objects (degrees/100ms)
+  stateDataLoop.adaptiveGripForce = -1.5;              // Default grip force
+  stateDataLoop.hardObjectForce = -3.5;                // Higher force for hard/heavy objects
+  stateDataLoop.softObjectForce = -1;                  // Lower force for soft/deformable objects
+  stateDataLoop.stallDetectionThreshold = 1.0;         // degrees - minimum angle change expected
+  stateDataLoop.stallConfirmationTime = 50;            // Time to confirm object hardness (ms)
+  stateDataLoop.magneticMagnitudeHardThreshold = 0.15; // Threshold for hard object detection (adjust as needed)
+  stateDataLoop.minAngleChangeRate = 0.5;              // Minimum angle change rate for elastic objects (degrees/100ms)
   stateDataLoop.lastMagneticMagnitude = 0.0;
   stateDataLoop.angleChangeRate = 0.0;
 
