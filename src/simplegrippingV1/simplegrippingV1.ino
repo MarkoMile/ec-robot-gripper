@@ -261,8 +261,8 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
     lastCalibrationState = currentCalibrationState;
   }
 
-  // Send detailed status every 1000ms
-  if (currentTime - lastDetailedStatus >= 1000)
+  // Send detailed status every 200ms
+  if (currentTime - lastDetailedStatus >= 200)
   {
     // Uncomment this for detailed JSON status
 
@@ -488,10 +488,10 @@ void findingStablePosition()
       stateDataLoop.elasticityMemoryIndex = (stateDataLoop.elasticityMemoryIndex + 1) % 5; // Circular buffer
 
       // Debug output
-      Serial.print("Angle rate: ");
-      Serial.print(angleRate);
-      Serial.print(" deg/s, Magnetic magnitude: ");
-      Serial.println(magneticMagnitude);
+      // Serial.print("Angle rate: ");
+      // Serial.print(angleRate);
+      // Serial.print(" deg/s, Magnetic magnitude: ");
+      // Serial.println(magneticMagnitude);
 
       // Combined detection logic using both magnetic magnitude and angle change rate
       bool isMovingSignificantly = angleRate > stateDataLoop.minAngleChangeRate;
@@ -600,14 +600,14 @@ void findingStablePosition()
       stateDataLoop.lastMagneticMagnitude = magneticMagnitude;
 
       // Debug output
-      Serial.print("Status: Angle rate: ");
-      Serial.print(angleRate);
-      Serial.print(" deg/s, Magnetic: ");
-      Serial.print(magneticMagnitude);
-      Serial.print(", Hard object: ");
-      Serial.print(stateDataLoop.isHardObject ? "Yes" : "No");
-      Serial.print(", Soft confirmed: ");
-      Serial.println(stateDataLoop.isSoftObjectConfirmed ? "Yes" : "No");
+      // Serial.print("Status: Angle rate: ");
+      // Serial.print(angleRate);
+      // Serial.print(" deg/s, Magnetic: ");
+      // Serial.print(magneticMagnitude);
+      // Serial.print(", Hard object: ");
+      // Serial.print(stateDataLoop.isHardObject ? "Yes" : "No");
+      // Serial.print(", Soft confirmed: ");
+      // Serial.println(stateDataLoop.isSoftObjectConfirmed ? "Yes" : "No");
     }
   }
   else
