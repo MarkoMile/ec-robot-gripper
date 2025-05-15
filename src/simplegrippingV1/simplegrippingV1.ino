@@ -4,7 +4,18 @@
 #include "config.h"
 #include <SimpleFOC.h>
 
+<<<<<<< HEAD
 #define MAX_ANGLE 1000
+=======
+// --- NOVO: Parametri za merenje DC struje ---
+const float R4_VALUE = 1000.0f;
+const float K_ILIS_VALUE = 19500.0f;
+const int ADC_PIN_CURRENT = A5; // KORISTITE VAŠ POTVRĐENI PIN (A0 ili A5 ili drugi)
+const float ADC_REF_VOLTAGE = 3.3f; // Referentni napon ADC-a za XMC4700 (proverite!)
+const float ADC_MAX_VALUE = 4095.0f; // Max vrednost za 12-bitni ADC (proverite!)
+// -------------------------------------------
+
+>>>>>>> setup_FOC
 struct InputDataStruct{
  double x, y, z;
  float tleSensor;
@@ -273,6 +284,59 @@ void zeriongFunc() {
 
     Serial.println(stateDataLoop.degreeOffset);
   }
+/*float getMotorDCCurrent() {
+  int adc_raw = analogRead(ADC_PIN_CURRENT);
+  float voltage_at_visrc = ( (float)adc_raw / ADC_MAX_VALUE ) * ADC_REF_VOLTAGE;
+  float i_is = voltage_at_visrc / R4_VALUE;
+  float i_load = i_is * K_ILIS_VALUE;
+  return i_load;
+}*/
+
+PhaseCurrent_s getMotorDCCurrent() {
+  PhaseCurrent_s current; // Kreiraj objekat strukture
+
+  int adc_raw = analogRead(ADC_PIN_CURRENT);
+  float voltage_at_visrc = ( (float)adc_raw / ADC_MAX_VALUE ) * ADC_REF_VOLTAGE;
+  float i_is = voltage_at_visrc / R4_VALUE;
+  float i_load = i_is * K_ILIS_VALUE; // Ovo je vaša izračunata ukupna DC struja
+
+  // Dodeli izračunatu DC struju jednoj od komponenti.
+  // Najčešće se za DC struju koristi komponenta 'a' ili 'b'.
+  // Za dc_current mod, SimpleFOC će verovatno koristiti samo jednu od ovih.
+  current.a = i_load;
+  current.b = 0.0f; // Postavi ostale na 0 jer ih ne meriš direktno
+  current.c = 0.0f; // Postavi ostale na 0
+
+  return current;
+}
+
+//PhaseCurrent_s getMotorDCCurrent();
+GenericCurrentSense current_sense = GenericCurrentSense(getMotorDCCurrent, 0); 
+
+void setup_FOC_dc_current_control() {
+  motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
+  motor.torque_controller = TorqueControlType::dc_current;
+  motor.controller = MotionControlType::torque;
+
+  // Ograničenje ciljne DC struje (u Amperima)
+  motor.current_limit = 0.5; // Primer: 0.5A. Prilagodite!
+
+  // PID za kontrolu ukupne DC struje (pretpostavljamo da SimpleFOC koristi PID_current_q za ovo)
+  // !!! Proverite SimpleFOC dokumentaciju/izvorni kod za tačan PID objekat za dc_current mod !!!
+  motor.PID_current_q.P = 1.0;   // POČETNA VREDNOST - zahteva TUNING!
+  motor.PID_current_q.I = 100.0; // POČETNA VREDNOST - zahteva TUNING!
+  motor.PID_current_q.D = 0.0;
+  motor.PID_current_q.limit = motor.voltage_limit; // Izlaz PID-a je napon
+  motor.LPF_current_q.Tf = 0.01f; // LPF za merenu DC struju (10ms). Eksperimentišite.
+
+  // PID za održavanje Id (struje fluksa) na nuli (i dalje koristan)
+  motor.PID_current_d.P = 0.3;
+  motor.PID_current_d.I = 100;
+  motor.PID_current_d.D = 0;
+  motor.PID_current_d.limit = motor.voltage_limit;
+  motor.LPF_current_d.Tf = 0.005f; // 5ms
+
+  Serial.println("Podešen dc_current mod.");
 }
 
 void gripperPositionTracking() {
@@ -349,17 +413,24 @@ void setup() {
   motor.voltage_sensor_align = 2;
   // choose FOC modulation (optional)
   motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
-  // set motion control loop to be used
-  motor.controller = MotionControlType::torque;
+  // set motion control loop to be used and setup the foc
+  setup_FOC_dc_current_control();
 
   // comment out if not needed
   // motor.useMonitoring(Serial);
 
   // initialize motor
   motor.init();
+  if (motor.initFOC()) {
+    Serial.println(F("Motor FOC spreman (dc_current mod)."));
+  } else {
+    Serial.println(F("FOC init NEUSPEŠAN. Proverite konekcije, parametre."));
+    while(1);
+  }
+
   // align sensor and start FOC
-  motor.initFOC();
-  Serial.println(F("Motor ready."));
+  //motor.initFOC();
+  //erial.println(F("Motor ready."));
 
   // start 3D magnetic sensor
   dut.begin();
@@ -384,6 +455,8 @@ void loop() {
     executeLogic(inputDataLoop,outputDataLoop);
     outputResults(outputDataLoop);
     serialComunication(inputDataLoop,outputDataLoop);
+    Serial.println("Struja: ");
+    Serial.print(motor.current.q);
   
 
 }
