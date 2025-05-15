@@ -184,6 +184,8 @@ Serial.print(outputData.target_voltage==0?0:1);
 Serial.print(",");
 Serial.print(stateDataLoop.absoluteAngle);
 Serial.print(",");
+Serial.print(PIDDataLoop.u);
+Serial.print(",");  
 Serial.println(stateDataLoop.degreeOffset);
 
 }
@@ -197,6 +199,7 @@ void discretePID()
   // You can use the inputData and outputData structures
   PIDDataLoop.y=stateDataLoop.x_filtered;
   PIDDataLoop.r=0.1;
+  PIDDataLoop.P=10;
   PIDDataLoop.T_passed=millis();
   PIDDataLoop.T=(PIDDataLoop.T_passed-PIDDataLoop.T_old)/1000.0;
   PIDDataLoop.T_old=PIDDataLoop.T_passed;
@@ -211,7 +214,9 @@ void discretePID()
   PIDDataLoop.P=PIDDataLoop.k*(PIDDataLoop.b*PIDDataLoop.r-PIDDataLoop.y);
   PIDDataLoop.D=ad*PIDDataLoop.D-bd*(PIDDataLoop.y-PIDDataLoop.y_old);
   
-  PIDDataLoop.v=PIDDataLoop.P+PIDDataLoop.I+PIDDataLoop.D;
+  PIDDataLoop.v=PIDDataLoop.P;
+  
+  //PIDDataLoop.v=PIDDataLoop.P+PIDDataLoop.I+PIDDataLoop.D;
   
   if (PIDDataLoop.v>PIDDataLoop.umax)
     PIDDataLoop.u=PIDDataLoop.umax;
@@ -222,7 +227,7 @@ void discretePID()
 
   PIDDataLoop.I=PIDDataLoop.I+bi*(PIDDataLoop.r-PIDDataLoop.y)+br*(PIDDataLoop.u-PIDDataLoop.v);
   PIDDataLoop.y_old=PIDDataLoop.y;
-
+  OutputDataStruct.target_voltage=PIDDataLoop.u;
   
 }
 void initDiscretePID()
