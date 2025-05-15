@@ -170,6 +170,11 @@ void serialComunication(InputDataStruct &inputData, OutputDataStruct &outputData
 Serial.print(stateDataLoop.x_filtered);
 Serial.print(",");
 Serial.println(outputData.target_voltage==0?0:1);
+Serial.print(",");
+Serial.print(stateDataLoop.absoluteAngle);
+Serial.print(",");
+Serial.println(stateDataLoop.degreeOffset);
+
 }
 
 void discretePID()
@@ -245,7 +250,7 @@ void initDiscretePID()
 
 void zeriongFunc() {
   // Initialize total path traveled (sum of absolute movements).
-  if (abs(stateDataLoop.x_filtered)<0.02)
+  if (abs(stateDataLoop.x_filtered)<0.1)
   {
     
     stateDataLoop.target_voltage=-1;
@@ -258,6 +263,8 @@ void zeriongFunc() {
     Serial.println("zeroing done");
     stateDataLoop.zeroing=false;
     stateDataLoop.degreeOffset= inputDataLoop.tleSensor * (57.295779513); // convert to degrees
+    stateDataLoop.numberOfRevolutions=0;
+
     Serial.println(stateDataLoop.degreeOffset);
   }
 }
