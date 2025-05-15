@@ -812,21 +812,25 @@
                 // Process calibration status
                 if (data.calibrating !== undefined) {
                     updateBooleanStatus(calibratingOutput, data.calibrating);
-                }
-                // Process hard object status
+                }                // Process hard object status
                 if (data.isHardObject !== undefined) {
                     updateBooleanStatus(isHardObjectOutput, data.isHardObject);
-
-                    const objectType = data.isHardObject ? "rigid" : "N/A";
-                    updateObjectTypeDisplay(objectType);
-                    simObjectTypeSelect.value = objectType;
                 }
 
                 // Process soft object confirmation status
                 if (data.isSoftObjectConfirmed !== undefined) {
                     updateBooleanStatus(isSoftObjectConfirmedOutput, data.isSoftObjectConfirmed);
+                }
 
-                    const objectType = data.isSoftObjectConfirmed ? "soft" : "N/A";
+                // Update object type visualization after processing both object statuses
+                if (data.isHardObject !== undefined || data.isSoftObjectConfirmed !== undefined) {
+                    // Set object type based on priority: soft confirmed first, then hard object
+                    let objectType = "N/A";
+                    if (data.isSoftObjectConfirmed) {
+                        objectType = "soft";
+                    } else if (data.isHardObject) {
+                        objectType = "rigid";
+                    }
                     updateObjectTypeDisplay(objectType);
                     simObjectTypeSelect.value = objectType;
                 }
